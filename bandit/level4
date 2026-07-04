@@ -1,0 +1,8 @@
+password:
+xzTXq1rDJQVVAzdv5cHq1TQytTWufAMq
+
+level4 solution:
+
+cd inhere/
+ls | xargs file --
+cat -- -file07
