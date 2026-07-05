@@ -1,0 +1,11 @@
+2026-07-03T08:00:01+09:00 INFO api app started env=prod version=2.1.0
+2026-07-03T08:00:02+09:00 DEBUG api loading config file=/etc/app/app.env
+2026-07-03T08:00:05+09:00 WARN api cache miss user_id=42
+2026-07-03T08:00:07+09:00 ERROR api database timeout host=db01.prod.example.com duration_ms=3100
+2026-07-03T08:00:08+09:00 ERROR payment payment failed order_id=ORD-20260703-0001 status=502
+2026-07-03T08:00:09+09:00 INFO api health check ok status=200
+2026-07-03T08:01:10+09:00 warning worker disk space low mount=/var usage=86%
+2026-07-03T08:02:10+09:00 FATAL worker out of memory pid=2222
+2026-07-03T08:02:11+09:00 TRACE api request_id=abc-123 path=/api/v1/orders
+2026-07-03T08:03:01+09:00 ERROR api password reset token leaked? token=abcDEF123456
+2026-07-03T08:04:00+09:00 INFO api request completed status=201 duration_ms=88

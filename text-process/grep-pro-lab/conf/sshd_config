@@ -1,0 +1,7 @@
+#PermitRootLogin prohibit-password
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication yes
+#AllowUsers deploy
+AllowUsers deploy ubuntu
+Port 22

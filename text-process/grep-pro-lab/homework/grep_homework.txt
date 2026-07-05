@@ -1,0 +1,327 @@
+grep 作业题目集：增强版
+
+说明：本题目集保留原文档的核心训练路径，并把原来只放在技巧区的高频用法正式补成练习题。新增重点包括 -F、--、-x、-l、-m、-A/-B、--exclude、管道 AND、-s、BRE/ERE 区分、模式文件反向过滤。
+
+0. 练习环境准备
+
+请先在 Ubuntu 或其他带 GNU grep 的 Linux 环境中复制执行下面整段命令。执行完成后进入 grep-pro-lab 目录。后面所有题目都默认从 grep-pro-lab 目录执行。
+
+rm -rf grep-pro-lab
+mkdir -p grep-pro-lab/{logs,conf,src,docs,patterns,archive,vendor,tmp}
+
+cat > grep-pro-lab/logs/app.log <<'EOF'
+2026-07-03T08:00:01+09:00 INFO api app started env=prod version=2.1.0
+2026-07-03T08:00:02+09:00 DEBUG api loading config file=/etc/app/app.env
+2026-07-03T08:00:05+09:00 WARN api cache miss user_id=42
+2026-07-03T08:00:07+09:00 ERROR api database timeout host=db01.prod.example.com duration_ms=3100
+2026-07-03T08:00:08+09:00 ERROR payment payment failed order_id=ORD-20260703-0001 status=502
+2026-07-03T08:00:09+09:00 INFO api health check ok status=200
+2026-07-03T08:01:10+09:00 warning worker disk space low mount=/var usage=86%
+2026-07-03T08:02:10+09:00 FATAL worker out of memory pid=2222
+2026-07-03T08:02:11+09:00 TRACE api request_id=abc-123 path=/api/v1/orders
+2026-07-03T08:03:01+09:00 ERROR api password reset token leaked? token=abcDEF123456
+2026-07-03T08:04:00+09:00 INFO api request completed status=201 duration_ms=88
+EOF
+
+cat > grep-pro-lab/logs/access.log <<'EOF'
+192.168.1.10 - - [03/Jul/2026:08:00:01 +0900] "GET / HTTP/1.1" 200 612 "-" "curl/8.5"
+203.0.113.7 - - [03/Jul/2026:08:00:02 +0900] "GET /admin HTTP/1.1" 403 142 "-" "Mozilla/5.0"
+198.51.100.23 - - [03/Jul/2026:08:00:03 +0900] "POST /login HTTP/1.1" 401 98 "-" "Mozilla/5.0"
+198.51.100.23 - - [03/Jul/2026:08:00:04 +0900] "POST /login HTTP/1.1" 401 98 "-" "Mozilla/5.0"
+10.0.0.5 - - [03/Jul/2026:08:01:10 +0900] "GET /health HTTP/1.1" 200 2 "-" "kube-probe/1.29"
+192.168.1.10 - - [03/Jul/2026:08:02:11 +0900] "GET /api/v1/users?id=42 HTTP/1.1" 200 923 "-" "Mozilla/5.0"
+203.0.113.7 - - [03/Jul/2026:08:03:12 +0900] "GET /../../etc/passwd HTTP/1.1" 400 51 "-" "sqlmap/1.7"
+203.0.113.9 - - [03/Jul/2026:08:04:13 +0900] "GET /wp-login.php HTTP/1.1" 404 153 "-" "Mozilla/5.0"
+203.0.113.9 - - [03/Jul/2026:08:04:20 +0900] "GET /.env HTTP/1.1" 404 153 "-" "Mozilla/5.0"
+198.51.100.77 - - [03/Jul/2026:08:05:00 +0900] "GET /api/v1/orders HTTP/1.1" 500 35 "-" "Mozilla/5.0"
+198.51.100.77 - - [03/Jul/2026:08:05:01 +0900] "GET /api/v1/orders HTTP/1.1" 502 35 "-" "Mozilla/5.0"
+10.0.0.5 - - [03/Jul/2026:08:05:03 +0900] "GET /health HTTP/1.1" 500 19 "-" "kube-probe/1.29"
+EOF
+
+cat > grep-pro-lab/logs/auth.log <<'EOF'
+Jul 3 08:00:10 web01 sshd[1201]: Accepted publickey for deploy from 192.168.1.50 port 51344 ssh2
+Jul 3 08:00:12 web01 sshd[1204]: Failed password for invalid user admin from 203.0.113.7 port 49822 ssh2
+Jul 3 08:00:14 web01 sshd[1205]: Failed password for root from 203.0.113.7 port 49824 ssh2
+Jul 3 08:01:01 web01 sudo: deploy : TTY=pts/0 ; PWD=/home/deploy ; USER=root ; COMMAND=/bin/systemctl restart nginx
+Jul 3 08:02:11 web01 sshd[1210]: Invalid user oracle from 198.51.100.23 port 49901
+Jul 3 08:03:09 web01 sshd[1211]: Connection closed by authenticating user root 203.0.113.7 port 50001 [preauth]
+Jul 3 08:05:42 web01 sudo: pam_unix(sudo:session): session opened for user root by deploy(uid=1001)
+Jul 3 08:06:00 web01 sshd[1220]: FAILED PASSWORD for invalid user test from 203.0.113.8 port 49890 ssh2
+Jul 3 08:07:00 web01 sshd[1221]: Failed password for username_root_backup from 203.0.113.10 port 49891 ssh2
+EOF
+
+cat > grep-pro-lab/logs/kubelet.log <<'EOF'
+Jul 03 08:00:01 node01 kubelet[778]: I0703 Started container api-7f9d
+Jul 03 08:00:05 node01 kubelet[778]: W0703 Back-off restarting failed container payment
+Jul 03 08:00:08 node01 kubelet[778]: E0703 Error syncing pod, skipping: failed to StartContainer
+Jul 03 08:01:09 node01 kubelet[778]: I0703 Readiness probe succeeded for pod api
+Jul 03 08:02:10 node01 kubelet[778]: E0703 ImagePullBackOff for image registry.example.com/private/payment:2.1.0
+EOF
+
+cat > grep-pro-lab/conf/app.env <<'EOF'
+APP_ENV=prod
+DEBUG=false
+LOG_LEVEL=info
+DATABASE_URL=postgres://app:secret@db01.prod.example.com:5432/app
+REDIS_URL=redis://cache01.prod.example.com:6379/0
+API_KEY=sk_live_demo_123456
+TOKEN=abcDEF123456
+EMPTY_VALUE=
+EOF
+
+cat > grep-pro-lab/conf/app.env.bak <<'EOF'
+APP_ENV=prod
+API_KEY=old_backup_key_should_be_ignored
+TOKEN=old_backup_token_should_be_ignored
+EOF
+
+cat > grep-pro-lab/conf/sshd_config <<'EOF'
+#PermitRootLogin prohibit-password
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication yes
+#AllowUsers deploy
+AllowUsers deploy ubuntu
+Port 22
+EOF
+
+cat > grep-pro-lab/conf/nginx.conf <<'EOF'
+# main nginx config
+user www-data;
+worker_processes auto;
+events { worker_connections 1024; }
+http {
+ # server_tokens off;
+ server_tokens on;
+ include /etc/nginx/mime.types;
+ server {
+ listen 80;
+ server_name example.com www.example.com;
+ root /var/www/html;
+ location /admin { deny all; }
+ location /health { access_log off; return 200 "ok"; }
+ }
+}
+EOF
+
+cat > grep-pro-lab/conf/prometheus.yml <<'EOF'
+global:
+ scrape_interval: 15s
+scrape_configs:
+ - job_name: api
+ static_configs:
+ - targets: ["api01:9100", "api02:9100"]
+ - job_name: node
+ static_configs:
+ - targets: ["node01:9100", "node02:9100"]
+EOF
+
+cat > grep-pro-lab/conf/jvm.options <<'EOF'
+-Xms512m
+-Xmx1024m
+-Dapp.env=prod
+-XX:+UseG1GC
+EOF
+
+cat > grep-pro-lab/src/app.py <<'EOF'
+import os
+API_ENDPOINT = "https://api.example.com/v1"
+DEBUG = False
+# TODO: move this to a secret manager
+DEFAULT_PASSWORD = "demo-password"
+def health():
+ return "ok"
+EOF
+
+cat > grep-pro-lab/src/auth.js <<'EOF'
+const jwtSecret = process.env.JWT_SECRET;
+const retryCount = 3;
+// FIXME: temporary debug bypass
+function login(user, password) {
+ if (user === "admin") {
+ return true;
+ }
+ return false;
+}
+EOF
+
+cat > grep-pro-lab/docs/runbook.md <<'EOF'
+# Production Runbook
+## Restart nginx
+Use systemctl restart nginx.
+## Check logs
+Look for ERROR, FATAL, timeout, ImagePullBackOff, and Failed password.
+## Security
+Do not paste DATABASE_URL, API_KEY, TOKEN, PASSWORD, or JWT_SECRET into tickets.
+EOF
+
+cat > grep-pro-lab/docs/release-notes.txt <<'EOF'
+Release 2.1.0
+Fixed login retry behavior.
+Known issue: a.b[c] appears in debug examples.
+EOF
+
+cat > grep-pro-lab/data_inventory.txt <<'EOF'
+host=web01 ip=192.168.1.10 role=frontend env=prod
+host=api01 ip=10.10.0.21 role=api env=prod
+host=api02 ip=10.10.0.22 role=api env=prod
+host=db01 ip=10.20.0.11 role=database env=prod
+host=dev01 ip=172.16.5.9 role=dev env=dev
+host=bastion01 ip=203.0.113.20 role=bastion env=prod
+EOF
+
+cat > grep-pro-lab/patterns/errors.patterns <<'EOF'
+ERROR
+FATAL
+timeout
+ImagePullBackOff
+Back-off
+EOF
+
+cat > grep-pro-lab/patterns/security.patterns <<'EOF'
+Failed password
+Invalid user
+FAILED PASSWORD
+/../../etc/passwd
+/.env
+/wp-login.php
+sqlmap
+EOF
+
+cat > grep-pro-lab/archive/old-app.log <<'EOF'
+2025-01-01T00:00:00+09:00 ERROR old archived failure token=oldtoken
+EOF
+
+cat > grep-pro-lab/vendor/noise.log <<'EOF'
+ERROR fake dependency error
+TOKEN=fake-vendor-token
+EOF
+
+cat > grep-pro-lab/tmp/generated.log <<'EOF'
+2026-07-03T08:10:00+09:00 ERROR temporary generated noise
+EOF
+
+cd grep-pro-lab
+
+
+一、所有题目
+
+1. 查找普通字符串，并显示行号
+题目：
+在 logs/app.log 中找出所有包含大写 ERROR 的行，并显示行号。
+
+2. 忽略大小写查找登录失败
+题目：
+在 logs/auth.log 中找出所有登录失败记录。要求同时匹配 Failed password 和 FAILED PASSWORD。
+
+3. 匹配完整单词，而不是普通子串
+题目：
+在 logs/auth.log 中找出包含完整单词 root 的行。要求不要把 username_root_backup 这种包含 root 字符串的用户名当成完整单词 root。
+
+4. 过滤掉空行和注释行，查看有效配置
+题目：
+查看 conf/nginx.conf 中真正生效的配置行。要求排除空行、以 # 开头的注释行、前面有空格再接 # 的注释行。
+
+5. 用扩展正则找 HTTP 4xx 和 5xx 请求
+题目：
+在 logs/access.log 中找出 HTTP 状态码为 400 到 599 的请求。要求不要匹配 200、201 这类正常状态码。
+
+6. 只输出匹配内容：提取 IP 地址
+题目：
+从 logs/access.log 中提取所有 IPv4 地址。要求只输出 IP 本身，不输出整行。
+
+7. 多关键词匹配：查找错误、超时、OOM
+题目：
+在 logs/app.log 中找出包含以下任意一种问题的行：ERROR、FATAL、timeout、out of memory。
+
+8. 查看错误上下文
+题目：
+在 logs/app.log 中找到 FATAL 所在行，并显示它前后各 2 行。
+
+9. 统计每个文件里匹配了多少行
+题目：
+统计 logs/app.log、logs/kubelet.log 中每个文件包含 ERROR 或 FATAL 的行数。
+
+10. 使用模式文件批量匹配
+题目：
+使用 patterns/errors.patterns 作为模式文件，在 logs/ 目录下搜索错误关键词。要求显示文件名和行号。
+
+11. 递归搜索项目，但排除 archive 和 vendor
+题目：
+在整个项目中搜索疑似敏感信息：PASSWORD、TOKEN、API_KEY、DATABASE_URL、JWT_SECRET、secret。要求递归搜索、显示文件名和行号、忽略大小写、排除 archive 目录、排除 vendor 目录，只搜索 .log、.env、.py、.js、.md 文件。
+
+12. 审计 SSH 危险配置
+题目：
+检查 conf/sshd_config 中是否存在未注释的危险配置：PermitRootLogin yes、PasswordAuthentication yes。要求不要匹配注释行，允许配置项前面有空格，允许配置项和值之间有多个空格或 Tab，显示行号。
+
+13. 审计 Nginx 是否暴露版本号
+题目：
+检查 conf/nginx.conf 里是否存在生效的 server_tokens on;。要求不要匹配注释行，允许前面有缩进，允许 on 后面有空格再接分号，显示行号。
+
+14. 只看真实业务 5xx，排除健康检查
+题目：
+从 logs/access.log 中找出 HTTP 5xx 请求，但排除 /health 健康检查请求。要求只使用 grep，可以使用管道，显示行号。
+
+15. 使用 find -exec grep 搜索指定类型文件
+题目：
+在 conf/ 和 src/ 目录下，只搜索普通文件，找出包含 TODO、FIXME、PASSWORD、JWT_SECRET 的行。要求结合 find，不要使用 xargs，不要使用 sed，不要使用 awk，显示文件名和行号。
+
+16. 找出缺少安全配置的文件
+题目：
+在 conf/ 下找出不包含 PasswordAuthentication no 的文件。要求只输出文件名，可以结合 find，不要使用 sed、awk。
+
+17. 在脚本里用 grep 判断是否危险
+题目：
+判断 conf/sshd_config 是否存在未注释的 PermitRootLogin yes。如果存在，输出 unsafe；如果不存在，输出 ok。要求 grep 本身不要输出匹配行，只根据退出码判断。
+
+18. 使用 PCRE 精确提取字段
+题目：
+从 logs/access.log 中只提取 HTTP 状态码数字。要求输出 200、403、401 等状态码，不要输出引号、空格、响应大小或整行。
+
+19. 使用固定字符串搜索，避免正则元字符误伤
+题目：
+分别在 src/app.py 和 docs/release-notes.txt 中搜索普通字符串 https://api.example.com/v1 和 a.b[c]。要求把点号、方括号等字符都当普通字符处理，不当正则处理。
+
+20. 搜索以连字符开头的模式
+题目：
+在 conf/jvm.options 中搜索 -Xmx。要求 -Xmx 被当作搜索模式，不被 grep 当作命令选项。
+
+21. 整行匹配配置项
+题目：
+在 conf/app.env 中查找整行等于 DEBUG=false 的行。要求不要只匹配包含 DEBUG=false 的更长行。
+
+22. 只列出包含 TODO 或 FIXME 的文件名
+题目：
+在 src/ 和 docs/ 目录中找出包含 TODO 或 FIXME 的文件。要求只输出文件名，不输出匹配行内容。
+
+23. 只看前两个 ERROR
+题目：
+在 logs/app.log 中只显示前两个包含 ERROR 的匹配行，并显示行号。
+
+24. 分别显示匹配行之前和之后的上下文
+题目：
+在 logs/kubelet.log 中找到 ImagePullBackOff，并显示它前 1 行、后 2 行。
+
+25. 递归搜索时排除备份文件
+题目：
+在 conf/ 下搜索 API_KEY。要求搜索 .env 和 .env.bak 这类文件名，但排除所有 .bak 备份文件，只显示真实配置文件中的结果。
+
+26. 用多个 grep 表达“同时满足两个条件”
+题目：
+从 logs/access.log 中找出请求路径为 POST /login 且 HTTP 状态码为 401 的行。要求只使用 grep 和管道。
+
+27. 用多个 grep 组合筛选结构化文本字段
+题目：
+从 data_inventory.txt 中找出 role=api 且 env=prod 的主机记录。要求只使用 grep 和管道。
+
+28. 搜索多个文件时隐藏不存在文件的报错
+题目：
+同时在 conf/app.env 和 conf/not-exist.env 中搜索 APP_ENV。要求不存在的 conf/not-exist.env 不产生错误信息，仍然显示存在文件中的匹配结果。
+
+29. 区分 BRE 和 ERE：同一个逻辑的两种写法
+题目：
+在 logs/app.log 中找出 status=200 或 status=201 的行。要求分别写出 grep -E 的写法，以及不使用 -E 时 GNU grep 基本正则风格的写法。
+
+30. 使用模式文件反向过滤安全噪音
+题目：
+使用 patterns/security.patterns 作为排除规则，从 logs/access.log 中过滤掉明显安全扫描或攻击特征行。要求不要使用 sed、awk，只使用 grep。
