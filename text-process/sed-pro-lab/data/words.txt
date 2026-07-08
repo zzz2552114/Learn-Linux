@@ -1,0 +1,4 @@
+ERROR error Error warning WARN
+foo foo foo
+path=/api/v1/orders path=/admin path=/health
+status=500 status=502 status=200

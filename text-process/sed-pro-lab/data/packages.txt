@@ -1,0 +1,5 @@
+nginx 1.24.0 installed
+openssh-server 9.6 installed
+postgresql-client 16 installed
+redis-server 7.0 removed
+curl 8.5 installed

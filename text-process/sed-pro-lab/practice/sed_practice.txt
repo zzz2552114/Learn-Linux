@@ -1,0 +1,348 @@
+Ubuntu / GNU sed 练习题（修订增强版）
+
+说明：下面所有题默认你已经执行第 0 步，并且当前目录是 sed-lab。
+
+0. 先生成练习材料
+复制执行下面这段：
+
+rm -rf sed-lab
+mkdir -p sed-lab/{logs,conf,data,tmp}
+
+cat > sed-lab/logs/app.log <<'EOF'
+2026-07-03T08:00:01+09:00 INFO api app started env=dev version=1.4.2
+2026-07-03T08:00:02+09:00 DEBUG api loading config file=/etc/app/app.conf
+2026-07-03T08:00:05+09:00 WARN api cache miss user_id=42
+2026-07-03T08:00:07+09:00 ERROR api database timeout host=db01.example.com duration_ms=3100
+2026-07-03T08:00:08+09:00 ERROR payment payment failed order_id=ORD-20260703-0001 status=502
+2026-07-03T08:00:09+09:00 INFO api health check ok status=200
+2026-07-03T08:01:10+09:00 warning worker disk space low mount=/var usage=86%
+2026-07-03T08:02:10+09:00 FATAL worker out of memory pid=2222
+2026-07-03T08:02:11+09:00 TRACE api request_id=abc-123 path=/api/v1/orders
+2026-07-03T08:03:01+09:00 ERROR api password reset token leaked? token=abcDEF123456
+EOF
+
+cat > sed-lab/logs/access.log <<'EOF'
+192.168.1.10 - - [03/Jul/2026:08:00:01 +0900] "GET / HTTP/1.1" 200 612 "-" "curl/8.5"
+203.0.113.7 - - [03/Jul/2026:08:00:02 +0900] "GET /admin HTTP/1.1" 403 142 "-" "Mozilla/5.0"
+198.51.100.23 - - [03/Jul/2026:08:00:03 +0900] "POST /login HTTP/1.1" 401 98 "-" "Mozilla/5.0"
+203.0.113.9 - - [03/Jul/2026:08:04:13 +0900] "GET /wp-login.php HTTP/1.1" 404 153 "-" "Mozilla/5.0"
+203.0.113.9 - - [03/Jul/2026:08:04:20 +0900] "GET /.env HTTP/1.1" 404 153 "-" "Mozilla/5.0"
+198.51.100.77 - - [03/Jul/2026:08:05:00 +0900] "GET /api/v1/orders HTTP/1.1" 500 35 "-" "Mozilla/5.0"
+198.51.100.77 - - [03/Jul/2026:08:05:01 +0900] "GET /api/v1/orders HTTP/1.1" 502 35 "-" "Mozilla/5.0"
+10.0.0.5 - - [03/Jul/2026:08:05:03 +0900] "GET /health HTTP/1.1" 500 19 "-" "kube-probe/1.29"
+EOF
+
+cat > sed-lab/logs/service.log <<'EOF'
+[service: api]
+INFO started
+ERROR database timeout
+INFO recovered
+[service: worker]
+INFO started
+ERROR job failed
+[service: payment]
+WARN slow response
+ERROR gateway returned 502
+EOF
+
+cat > sed-lab/conf/app.conf <<'EOF'
+# Application config
+APP_ENV = dev
+DEBUG = true
+TIMEOUT = 30
+LOG_LEVEL=debug
+DATABASE_URL=postgres://app:secret@db01.example.com:5432/app
+PASSWORD=plain-text-demo
+API_KEY=sk_live_demo_123
+EMPTY_VALUE=
+# CACHE_ENABLED=false
+CACHE_ENABLED=true
+EOF
+
+cat > sed-lab/conf/nginx.conf <<'EOF'
+# main nginx config
+user www-data;
+worker_processes auto;
+events { worker_connections 1024; }
+http {
+ # server_tokens off;
+ server_tokens on;
+ include /etc/nginx/mime.types;
+ server {
+ listen 80;
+ server_name example.com www.example.com;
+ root /var/www/html;
+ location /admin { deny all; }
+ location /health { access_log off; return 200 "ok"; }
+ }
+}
+EOF
+
+cat > sed-lab/conf/sshd_config <<'EOF'
+#PermitRootLogin prohibit-password
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication yes
+#AllowUsers deploy
+AllowUsers deploy ubuntu
+Port 22
+EOF
+
+cat > sed-lab/conf/system.ini <<'EOF'
+[development]
+log_level=debug
+debug=true
+workers=1
+[production]
+log_level=debug
+debug=false
+workers=4
+[staging]
+log_level=info
+debug=true
+workers=2
+EOF
+
+cat > sed-lab/conf/long.conf <<'EOF'
+JAVA_OPTS="-Xms512m \
+-Xmx1024m \
+-Dspring.profiles.active=prod"
+EOF
+
+cat > sed-lab/data/users.csv <<'EOF'
+id,name,email,role,last_login
+1,Alice,alice@example.com,admin,2026-07-01
+2,Bob,bob@example.com,user,2026-07-02
+3,Charlie,charlie@example.com,user,never
+4,Diana,diana@example.org,ops,2026-07-03
+5,Eve,eve@example.com,guest,never
+EOF
+
+cat > sed-lab/data/packages.txt <<'EOF'
+nginx 1.24.0 installed
+openssh-server 9.6 installed
+postgresql-client 16 installed
+redis-server 7.0 removed
+curl 8.5 installed
+EOF
+
+cat > sed-lab/data/report.txt <<'EOF'
+Report date: 2026-07-03
+Backup window: 2026-07-03 02:00-03:00
+Owner: ops@example.com
+Ticket: INC-20260703-0007
+EOF
+
+# 下面是本次补充题需要的额外练习材料。
+cat > sed-lab/data/words.txt <<'EOF'
+ERROR error Error warning WARN
+foo foo foo
+path=/api/v1/orders path=/admin path=/health
+status=500 status=502 status=200
+EOF
+
+cat > sed-lab/data/messages.txt <<'EOF'
+todo: restart api
+done: backup database
+todo: rotate logs
+note: check disk
+EOF
+
+cat > sed-lab/data/header.txt <<'EOF'
+# inserted by sed r command
+# owner: ops
+EOF
+
+cat > sed-lab/data/mixed.txt <<'EOF'
+User Alice logged in
+user bob failed login
+USER Charlie locked
+EOF
+
+cat > sed-lab/data/invisible.txt <<'EOF'
+key	value  
+plain
+EOF
+
+printf 'alpha\0beta\0gamma\0' > sed-lab/data/nul.txt
+
+cd sed-lab
+
+
+一、题目清单（只含题目，不含答案）
+
+1. 只打印指定行范围
+题目：
+打印 logs/app.log 的第 1 行到第 5 行。
+
+2. 替换每行第一个匹配项
+题目：
+把 conf/app.conf 里 APP_ENV = dev 改成 APP_ENV = prod，但先不要真的改文件，只在终端预览结果。
+
+3. 全局替换一行里的所有匹配项
+题目：
+把 data/users.csv 里所有 example.com 替换成 internal.local，只预览，不写回文件。
+
+4. 删除空行和注释行
+题目：
+从 conf/app.conf 中删除空行和以 # 开头的注释行，只输出有效配置。
+
+5. 只打印 WARN、ERROR、FATAL 日志
+题目：
+从 logs/app.log 中只打印包含 WARN、ERROR、FATAL 的行。
+
+6. 删除 DEBUG 行和健康检查行
+题目：
+从 logs/app.log 中删除包含 DEBUG 的行，也删除包含 health check 的行。
+
+7. 日期格式转换
+题目：
+把 data/report.txt 里的日期从 YYYY-MM-DD 改成 DD/MM/YYYY，只预览，不写回文件。
+
+8. 在匹配行前插入一行
+题目：
+在 conf/nginx.conf 中每个 server { 前面插入一行注释：# managed by sed lab。只预览，不写回文件。
+
+9. 安全地原地修改文件，并创建备份
+题目：
+把 conf/app.conf 复制到 tmp/app.conf，然后把其中未注释的 DEBUG = true 改成 DEBUG = false。要求真的修改文件，并生成备份。
+
+10. grep + sed：提取 ERROR 日志里的时间和服务名
+题目：
+先用 grep 找出 logs/app.log 中包含 ERROR 的行，再用 sed 输出这种格式：time=时间 service=服务名。
+
+11. SSH 安全基线修复：禁用 root 登录
+题目：
+把 conf/sshd_config 中未注释的 PermitRootLogin yes 改成 PermitRootLogin no。只预览，不写回文件；不要修改注释行。
+
+12. SSH 安全基线修复：禁用密码登录
+题目：
+把 conf/sshd_config 中未注释的 PasswordAuthentication yes 改成 PasswordAuthentication no。写入 tmp/sshd_config，不破坏原文件；原地修改并保留备份。
+
+13. Nginx 安全配置修复：关闭 server_tokens
+题目：
+把 conf/nginx.conf 中真正生效的 server_tokens on; 改成 server_tokens off;，不要修改注释里的 # server_tokens off;。
+
+14. 删除一个配置行
+题目：
+从 conf/nginx.conf 中删除整个 /admin location 配置行：location /admin { deny all; }。只预览，不写回文件。
+
+15. 只修改 INI 文件中的 production 区块
+题目：
+把 conf/system.ini 中 [production] 区块里的 log_level=debug 改成 log_level=warn，不要修改 [development] 和 [staging] 区块。
+
+16. 批量脱敏敏感信息
+题目：
+把 conf/app.conf 中 DATABASE_URL=...、PASSWORD=...、API_KEY=... 的值脱敏为 REDACTED。只预览，不写回文件。
+
+17. 提取 access.log 中的 HTTP 状态码
+题目：
+从 logs/access.log 中只提取 HTTP 状态码，例如 200、403、401、404、500、502。只用 sed，不用 awk。
+
+18. 多行处理：合并反斜杠续行
+题目：
+把 conf/long.conf 中用反斜杠 \ 续行的配置合并成一行。
+
+19. 只输出有效配置，并加原始行号
+题目：
+从 conf/nginx.conf 中输出非空、非注释的有效配置，并给每一行前面加上原始行号。
+
+20. grep 找文件，sed 批量脱敏
+题目：
+在当前目录下找出包含 PASSWORD=、API_KEY=、DATABASE_URL= 的文件，然后用 sed 对这些文件做原地脱敏，并保留 .bak 备份。可以结合 grep；不要使用 awk。
+
+21. 删除 access.log 中的健康检查请求
+题目：
+从 logs/access.log 中删除 /health 请求，只保留真实业务访问。
+
+22. 把 5xx 请求标记出来
+题目：
+把 logs/access.log 中 HTTP 状态码为 5xx 的行前面加上 [SERVER_ERROR]，只预览，不写回文件。
+
+23. 只在生产区块里关闭 debug
+题目：
+把 conf/system.ini 中 [production] 区块里的 debug=false 保持为 false；如果它是 true，也要改成 false。不要影响其他区块。
+
+24. 把 CSV 里的邮箱脱敏
+题目：
+把 data/users.csv 中邮箱用户名部分脱敏，只保留域名，例如 alice@example.com 变成 ***@example.com。
+
+25. 从日志中提取 token 的值
+题目：
+从 logs/app.log 中提取 token=abcDEF123456 里的 token 值，只输出 abcDEF123456。
+
+26. 使用 hold space：给 ERROR 行补上所属服务名
+题目：
+logs/service.log 里服务名在 section 行中。只输出 ERROR 行，并在前面加上所属服务名。
+
+27. 补充：用 -e 编写多条 sed 脚本
+题目：
+从 logs/app.log 中删除 DEBUG 和 TRACE 行，同时把小写 warning 日志级别标准化为 WARN。
+
+28. 补充：用 -f 从脚本文件读取 sed 命令
+题目：
+把脱敏和删除注释的规则写入 tmp/sanitize.sed，然后用 sed -f 处理 conf/app.conf。
+
+29. 补充：使用 & 代表整个匹配内容
+题目：
+把 data/words.txt 中所有 status=三位数字 包起来，变成 [status=500] 这种形式。
+
+30. 补充：替换路径时使用其他分隔符
+题目：
+把 logs/access.log 中的 /api/v1/orders 替换成 /api/v2/orders。
+
+31. 补充：只替换每行第 N 个匹配
+题目：
+把 data/words.txt 中每行第 2 个 foo 替换成 BAR。
+
+32. 补充：使用 s///p 只打印发生替换的行
+题目：
+把 conf/system.ini 中 debug=true 预览成 debug=false，但只打印真正发生替换的行。
+
+33. 补充：GNU sed 的大小写不敏感匹配 I 标志
+题目：
+把 data/mixed.txt 中行首的 user 统一显示成 USER，不管原来是 User、user 还是 USER。
+
+34. 补充：GNU sed 的大小写转换 \L、\U
+题目：
+把 data/users.csv 中 name 字段的姓名转成小写，只预览。
+
+35. 补充：用 q 找到第一处匹配后立即退出
+题目：
+只打印 logs/app.log 中第一条 ERROR 日志，然后停止读取后面的文件内容。
+
+36. 补充：用 a 在匹配行后追加文本
+题目：
+在 conf/nginx.conf 的 server_name 行后追加一行 add_header X-Frame-Options DENY;，只预览。
+
+37. 补充：用 c 替换整行
+题目：
+把 conf/nginx.conf 中 location /health 那一整行替换成更短的健康检查配置，只预览。
+
+38. 补充：用 r 读取另一个文件并插入输出
+题目：
+把 data/header.txt 的内容插入到 conf/app.conf 的 # Application config 行后面，只预览。
+
+39. 补充：用 w 把匹配行写入文件
+题目：
+把 logs/app.log 中 ERROR 行写入 tmp/errors.log，然后查看 tmp/errors.log。
+
+40. 补充：用 y 做字符级转换
+题目：
+把 data/packages.txt 中的小写英文字母转换为大写，只预览。
+
+41. 补充：多文件处理时使用 -s 分开计算行号和 $
+题目：
+同时读取 data/users.csv 和 data/packages.txt，打印每个文件的最后一行。
+
+42. 补充：用 l 显示不可见字符
+题目：
+用 sed 显示 data/invisible.txt 中的制表符、行尾和尾随空格。
+
+43. 补充：GNU sed 的 -z 处理 NUL 分隔数据
+题目：
+把 data/nul.txt 中 NUL 分隔的 beta 替换成 BETA，并用 tr 把 NUL 显示成换行。
+
+44. 补充：BRE 基本正则写法和 -E 的区别
+题目：
+不用 -E，从 data/users.csv 中提取 id 和 name，输出 id=数字 name=姓名；跳过表头。

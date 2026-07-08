@@ -1,0 +1,11 @@
+# Application config
+APP_ENV = dev
+DEBUG = true
+TIMEOUT = 30
+LOG_LEVEL=debug
+DATABASE_URL=postgres://app:secret@db01.example.com:5432/app
+PASSWORD=plain-text-demo
+API_KEY=sk_live_demo_123
+EMPTY_VALUE=
+# CACHE_ENABLED=false
+CACHE_ENABLED=true

@@ -1,0 +1,10 @@
+[service: api]
+INFO started
+ERROR database timeout
+INFO recovered
+[service: worker]
+INFO started
+ERROR job failed
+[service: payment]
+WARN slow response
+ERROR gateway returned 502

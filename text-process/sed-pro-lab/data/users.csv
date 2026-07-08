@@ -1,0 +1,6 @@
+id,name,email,role,last_login
+1,Alice,alice@example.com,admin,2026-07-01
+2,Bob,bob@example.com,user,2026-07-02
+3,Charlie,charlie@example.com,user,never
+4,Diana,diana@example.org,ops,2026-07-03
+5,Eve,eve@example.com,guest,never

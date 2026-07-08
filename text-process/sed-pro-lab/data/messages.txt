@@ -1,0 +1,4 @@
+todo: restart api
+done: backup database
+todo: rotate logs
+note: check disk
