@@ -6,49 +6,28 @@
 
 ## 学习路线
 
-### 当前阶段
+### 已完成阶段
 - Linux 基础学习
 
+### 当前阶段
+- Linux 文本处理
 ### 后续学习计划
 
-#### 1. **用户管理**
-   - 用户和组的概念
-   - 用户权限和文件权限管理
-   - sudo 权限配置
-   - 账户安全管理
-
-#### 2. **网络编程**
-   - Socket 编程基础
-   - TCP/IP 协议栈
-   - 客户端-服务器模型
-   - 多进程/多线程网络编程
-   - 高性能网络框架
-
-#### 3. **操作系统**
-   - 进程与线程管理
-   - 内存管理机制
-   - 文件系统原理
-   - I/O 管理
-   - 并发控制与同步
-   - epoll多路复用原理
-
-#### 4. **Linux 内核**
-   - 内核架构和启动流程
-   - 系统调用接口
-   - 进程调度算法
-   - 内存管理单元
-   - 驱动程序开发
-
+1. **系统管理**
+2. **系统监控**
+3. **网络编程**
+4. **内核学习**
 ## 项目结构 ( 预期 ）
 
 ```
 Linux-learning-repo/
-├── README.md           # 项目文档
-├── user_management/    # 用户管理相关代码
-├── network_programming/ # 网络编程实践
-├── os_concepts/        # 操作系统概念
-├── kernel_study/       # Linux 内核学习
-└── practice_code/      # 其他实践代码
+├── README.md   
+├── basics/               # Linux 基础命令和shell语法
+├── text-process/         # 文本处理三剑客
+├── system-management/    # 用户管理相关代码
+├── network-programming/  # 网络编程实践
+├── kernel-study/         # Linux 内核学习
+├── ...
 ```
 
 ## 技术栈
@@ -62,11 +41,15 @@ Linux-learning-repo/
 
 - Linux基础:
    1. MIT: The Missing Semester of Your CS Education
-   2. AcWing << Linux 基础课 >> 
-   3. Youtube 视频资源 
-- Computer Networking: A Top-Down Approach
-- Operating Systems: three easy pieces
-- Operating Systems: Principles and Practice
+   2. AcWing **Linux 基础课** 
+- 用户管理
+   - Youtube 视频资源 
+- 网络编程
+   - Computer Networking: A Top-Down Approach
+- linux内核
+   - Operating Systems: three easy pieces
+- 辅助书籍
+   - Operating Systems: Principles and Practice
 - 开源项目源码分析
 - 实战项目代码
 
@@ -76,4 +59,5 @@ Linux-learning-repo/
 
 ---
 
-*持续学习中... *
+*持续学习中...*
+> Edit at 2026-7-13
