@@ -23,6 +23,7 @@
 Linux-learning-repo/
 ├── README.md   
 ├── basics/               # Linux 基础命令和shell语法
+├── bandit/               # bandit 网站闯关记录
 ├── text-process/         # 文本处理三剑客
 ├── system-management/    # 用户管理相关代码
 ├── network-programming/  # 网络编程实践
