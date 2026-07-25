@@ -1,2 +1,4 @@
 *.swp
-.claude/
+*.swo
+*.sw*
+

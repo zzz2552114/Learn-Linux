@@ -1,0 +1,7 @@
+2026-07-03T08:00:01+09:00 INFO api app started env=dev version=1.4.2
+2026-07-03T08:00:02+09:00 DEBUG api loading config file=/etc/app/app.conf
+2026-07-03T08:00:05+09:00 WARN api cache miss user_id=42
+2026-07-03T08:00:07+09:00 ERROR api database timeout host=db01.example.com duration_ms=3100
+2026-07-03T08:00:09+09:00 INFO api health check ok status=200
+2026-07-03T08:02:11+09:00 TRACE api request_id=abc-123 path=/api/v1/orders
+2026-07-03T08:03:01+09:00 ERROR api password reset token leaked? token=abcDEF123456
