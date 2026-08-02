@@ -1,0 +1,6 @@
+Filesystem Size Used Avail Use% Mounted-on
+/dev/vda1 40G 28G 12G 70% /
+/dev/vdb1 100G 91G 9G 91% /var
+/dev/vdc1 200G 110G 90G 55% /data
+tmpfs 4.0G 120M 3.9G 3% /run
+/dev/vdd1 50G 46G 4G 92% /backup

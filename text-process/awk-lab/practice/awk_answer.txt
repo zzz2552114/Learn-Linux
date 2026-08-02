@@ -1,0 +1,815 @@
+Ubuntu awk 命令练习题：从入门到运维精通（题目 + 答案 + 预期结果 + 解释 + 用途版）
+
+一、对原文的逐项复查与补漏结论
+1. 原文整体方向正确：已经覆盖字段提取、-F、正则过滤、数值比较、printf、数组统计、多文件关联、find+awk、awk -f 等核心能力。
+2. 需要修正/补全：原文把 inventory.tsv/incidents.tsv 当作 Tab 分隔，但展示文本容易复制成空格。本版 setup 明确用 printf 写入真正 Tab，避免 -F "\t" 失效。
+3. 原文基础 4 只匹配大写 WARN/ERROR/FATAL，不会匹配小写 warning。本版保留区分大小写题，同时新增 tolower 忽略大小写题。
+4. 原文多个统计题没有给稳定排序或精确预期结果。本版对数组输出尽量接 sort，并补全精确预期结果。
+5. 原文缺少或练得不够充分的常用点：-v 参数化、OFS/ORS/RS、NF 数据质量检查、FILENAME/FNR 审计定位、match/RSTART/RLENGTH、length/substr/index、sub/gsub 脱敏、多文件状态重置、函数、三元表达式、GNU awk 的 --csv/FIELDWIDTHS/FPAT/asorti/gensub/--lint/--posix。
+6. CSV 注意点：普通 awk -F, 只适合简单 CSV；带引号逗号的正式 CSV 不应硬用 -F,。本版新增 GNU awk --csv 和 FPAT 练习。
+
+
+
+二、完整题目、答案、预期结果、解释和用途
+
+Q01. 打印整行和行号
+原题/增强题：查看 logs/app.log 的前 3 行，输出格式为 行号:原始行。
+命令：
+awk 'NR <= 3 { print NR ":" $0 }' logs/app.log
+预期结果：
+1:2026-07-03T08:00:01+09:00 INFO service=api app started env=prod version=2.1.0
+2:2026-07-03T08:00:02+09:00 DEBUG service=api loading config file=/etc/app/app.env
+3:2026-07-03T08:00:05+09:00 WARN service=api cache miss user_id=42 duration_ms=120
+参数/语法说明：
+NR 表示已经读取到的总行号；$0 表示当前整行。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+快速定位日志片段，给同事或工单提供“第几行出现什么”。
+
+Q02. 字段数量 NF 和最后一列 $NF
+原题/增强题：读取 data/packages.txt，输出包名、字段数量和最后一列。
+命令：
+awk '{ print $1, "fields=" NF, "last=" $NF }' data/packages.txt
+预期结果：
+nginx fields=3 last=installed
+openssh-server fields=3 last=installed
+postgresql-client fields=3 last=installed
+redis-server fields=3 last=removed
+curl fields=3 last=installed
+nodejs fields=3 last=installed
+old-agent fields=3 last=removed
+参数/语法说明：
+NF 表示当前行字段数；$NF 表示最后一个字段；默认 FS 是连续空白。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+检查命令输出或清单字段是否符合预期，特别适合发现缺列、尾列状态。
+
+Q03. TSV 字段提取：主机名、角色、环境
+原题/增强题：读取 data/inventory.tsv，跳过表头，输出 host、role、env。
+校正/补充：原文疏漏修正：题目说 inventory.tsv 是 TSV，因此答案使用 -F "\t" 是合理的；但原文展示出来的样例容易被复制成空格分隔。本版 setup 用 printf 明确写入真正 Tab。若你的文件实际是空格分隔，应去掉 -F "\t" 或改用 FS="[[:space:]]+"。
+命令：
+awk -F '\t' 'NR > 1 { print $1, $3, $4 }' data/inventory.tsv
+预期结果：
+web01 frontend prod
+api01 api prod
+api02 api prod
+db01 database prod
+dev01 dev dev
+bastion01 bastion prod
+参数/语法说明：
+-F "\t" 把输入字段分隔符设为 Tab；NR>1 跳过表头；$1/$3/$4 取指定列。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+CMDB、资产清单、导出表格经常是 TSV；快速取列是运维最常用动作。
+
+Q04. CSV 字段提取：姓名、邮箱、角色
+原题/增强题：读取 data/users.csv，跳过表头，输出 name、email、role。
+命令：
+awk -F, 'NR > 1 { print $2, $3, $4 }' data/users.csv
+预期结果：
+Alice alice@example.com admin
+Bob bob@example.com user
+Charlie charlie@example.com user
+Diana diana@example.org ops
+Eve eve@example.com guest
+参数/语法说明：
+-F, 把输入分隔符设为逗号；print 默认用 OFS 输出字段。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+用户清单、监控导出、工单导出常是简单 CSV；awk 适合做快速列提取。
+
+Q05. key=value 配置解析
+原题/增强题：读取 conf/app.env，输出非空配置项，格式为 KEY => VALUE。
+命令：
+awk -F= 'NF == 2 && $2 != "" { print $1 " => " $2 }' conf/app.env
+预期结果：
+APP_ENV => prod
+DEBUG => false
+LOG_LEVEL => info
+DATABASE_URL => postgres://app:secret@db01.prod.example.com:5432/app
+REDIS_URL => redis://cache01.prod.example.com:6379/0
+API_KEY => sk_live_demo_123456
+TOKEN => abcDEF123456
+参数/语法说明：
+-F= 按等号切分；NF==2 检查 key=value 结构；$2 != "" 跳过空值。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+环境变量、.env、systemd EnvironmentFile 都是 key=value；这是配置审计基础。
+
+Q06. OFS 控制输出分隔符
+原题/增强题：从 data/users.csv 生成只含 name,role 两列的新 CSV。
+命令：
+awk -F, 'BEGIN { OFS="," } NR==1 { print "name","role"; next } { print $2, $4 }' data/users.csv
+预期结果：
+name,role
+Alice,admin
+Bob,user
+Charlie,user
+Diana,ops
+Eve,guest
+参数/语法说明：
+OFS 是输出字段分隔符；next 会跳过当前记录后续规则。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+把原始数据转换为下游脚本、Excel、报表能继续处理的格式。
+
+Q07. 正则过滤日志级别：区分大小写
+原题/增强题：从 logs/app.log 输出包含 WARN、ERROR、FATAL 的行，并显示行号。
+校正/补充：原文补充：这条命令区分大小写，所以不会匹配第 7 行的小写 warning。本版下一题专门补充忽略大小写写法。
+命令：
+awk '$0 ~ /WARN|ERROR|FATAL/ { print NR ":" $0 }' logs/app.log
+预期结果：
+3:2026-07-03T08:00:05+09:00 WARN service=api cache miss user_id=42 duration_ms=120
+4:2026-07-03T08:00:07+09:00 ERROR service=api database timeout host=db01.prod.example.com duration_ms=3100
+5:2026-07-03T08:00:08+09:00 ERROR service=payment payment failed order_id=ORD-20260703-0001 status=502 duration_ms=850
+8:2026-07-03T08:02:10+09:00 FATAL service=worker out of memory pid=2222 duration_ms=0
+10:2026-07-03T08:03:01+09:00 ERROR service=api password reset token leaked? token=abcDEF123456 duration_ms=40
+12:2026-07-03T08:05:00+09:00 ERROR service=worker job failed queue=critical duration_ms=640
+参数/语法说明：
+$0 ~ /正则/ 表示整行匹配正则；NR ":" $0 使用字符串拼接。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+事故排查第一步常是筛 WARN/ERROR/FATAL，并保留行号方便定位上下文。
+
+Q08. 忽略大小写过滤日志级别
+原题/增强题：从 logs/app.log 输出 WARN/warning、ERROR、FATAL 的行号和日志级别。
+命令：
+awk 'tolower($0) ~ /warn|error|fatal/ { print NR ":" $2 }' logs/app.log
+预期结果：
+3:WARN
+4:ERROR
+5:ERROR
+7:warning
+8:FATAL
+10:ERROR
+12:ERROR
+参数/语法说明：
+tolower($0) 把整行转小写；toupper/tolower 是常用大小写函数。gawk 也有 IGNORECASE，但 mawk 不通用。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+真实日志大小写不一定统一；忽略大小写能减少漏报。
+
+Q09. 数值比较：CPU 或内存过高
+原题/增强题：读取 data/metrics.csv，找出 CPU >= 85 或 MEM >= 85 的记录。
+命令：
+awk -F, 'NR > 1 && ($3 >= 85 || $4 >= 85) { print $1, $2, "cpu=" $3, "mem=" $4 }' data/metrics.csv
+预期结果：
+08:00 api01 cpu=87.1 mem=72.3
+08:00 api02 cpu=91.4 mem=80.1
+08:00 db01 cpu=76.8 mem=88.9
+08:05 api01 cpu=92.7 mem=83.4
+08:05 db01 cpu=84.2 mem=91.5
+参数/语法说明：
+数值比较使用 >=；逻辑或使用 ||；括号保证条件优先级清晰。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+监控快照、df/ps/top 导出都需要数值阈值判断，grep 很难准确做这类比较。
+
+Q10. printf 对齐输出报表
+原题/增强题：读取 data/metrics.csv，输出 HOST、CPU、MEM 三列对齐报表。
+命令：
+awk -F, 'BEGIN { printf "%-10s %8s %8s\n", "HOST", "CPU", "MEM" } NR > 1 { printf "%-10s %8.1f %8.1f\n", $2, $3, $4 }' data/metrics.csv
+预期结果：
+HOST            CPU      MEM
+web01          32.5     61.2
+api01          87.1     72.3
+api02          91.4     80.1
+db01           76.8     88.9
+web01          38.2     63.0
+api01          92.7     83.4
+api02          79.5     78.8
+db01           84.2     91.5
+参数/语法说明：
+BEGIN 在读文件前执行；printf 负责格式化；%-10s、%8.1f 控制宽度和小数位。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+把结果贴到群聊、工单、日报时，对齐报表更易读。
+
+Q11. split + 求平均：duration_ms 平均耗时
+原题/增强题：从 logs/app.log 中提取所有 duration_ms=数字，输出样本数和平均耗时。
+校正/补充：原文补充：原题没有给出精确预期结果。本数据中共有 10 个 duration_ms，平均值是 497.20 ms。
+命令：
+awk '{ for (i=1;i<=NF;i++) if ($i ~ /^duration_ms=/) { split($i,a,"="); sum += a[2]; n++ } } END { if (n>0) printf "count=%d avg_duration_ms=%.2f\n", n, sum/n }' logs/app.log
+预期结果：
+count=10 avg_duration_ms=497.20
+参数/语法说明：
+for 遍历字段；split(str,a,"=") 拆 key=value；sum+= 累加；END 输出汇总。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+日志性能分析常要统计耗时平均值、最大值、分位数的第一步。
+
+Q12. 关联数组：按 HTTP 状态码统计
+原题/增强题：读取 logs/access.log，统计每个状态码的出现次数，并按状态码排序。
+校正/补充：原文补充：awk 关联数组遍历顺序不保证稳定，所以这里接 sort -n 让预期结果固定。生产脚本或自动化测试里尤其应该注意这一点。
+命令：
+awk '{ count[$9]++ } END { for (code in count) print code, count[code] }' logs/access.log | sort -n
+预期结果：
+200 3
+400 1
+401 2
+403 1
+404 2
+500 2
+502 1
+参数/语法说明：
+count[$9]++ 使用关联数组分组计数；外接 sort -n 保证输出顺序。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+Web 排障常先看 2xx/4xx/5xx 分布，判断是用户错误还是服务错误。
+
+Q13. 认证日志：按 IP 统计失败登录
+原题/增强题：读取 logs/auth.log，忽略大小写统计 Failed password 来源 IP。
+命令：
+awk 'tolower($0) ~ /failed password/ { for (i=1;i<=NF;i++) if ($i == "from") { ip=$(i+1); fail[ip]++ } } END { for (ip in fail) print ip, fail[ip] }' logs/auth.log | sort
+预期结果：
+203.0.113.10 1
+203.0.113.7 2
+203.0.113.8 1
+参数/语法说明：
+tolower 忽略大小写；for 扫描字段；$(i+1) 表示 from 后面的 IP 字段。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+安全巡检中按来源 IP 聚合失败登录，是识别扫描和爆破的基础。
+
+Q14. BEGIN/END：软件包状态摘要
+原题/增强题：读取 data/packages.txt，先输出标题，中间输出包名和状态，最后统计 installed/removed。
+命令：
+awk 'BEGIN { print "PACKAGE STATUS"; print "--------------" } { print $1, $3; status[$3]++ } END { print "--------------"; print "installed=" status["installed"]; print "removed=" status["removed"] }' data/packages.txt
+预期结果：
+PACKAGE STATUS
+--------------
+nginx installed
+openssh-server installed
+postgresql-client installed
+redis-server removed
+curl installed
+nodejs installed
+old-agent removed
+--------------
+installed=5
+removed=2
+参数/语法说明：
+BEGIN 打印报表头；主处理块逐行打印并计数；END 打印汇总。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+把明细和汇总放在同一个输出里，适合巡检脚本和日报脚本。
+
+Q15. gsub 去单位：磁盘使用率告警
+原题/增强题：读取 data/disk.txt，找出 Use% >= 85 的文件系统、使用率和挂载点。
+命令：
+awk 'NR>1 { use=$5; gsub(/%/,"",use); if (use >= 85) print $1, use "%", $6 }' data/disk.txt
+预期结果：
+/dev/vdb1 91% /var
+/dev/vdd1 92% /backup
+参数/语法说明：
+gsub(/%/,"",use) 删除百分号；复制到 use 可避免修改原字段。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+df 输出的百分号需要先清理再比较；磁盘巡检脚本高频使用。
+
+Q16. sub/gsub 思维：配置脱敏
+原题/增强题：读取 conf/app.env，输出可能包含敏感信息的 KEY，并把值替换为 ***REDACTED***。
+校正/补充：新增补漏：原文讲到了 gsub，但没有专门练习“脱敏”。运维中处理日志和配置时，脱敏是高频需求。
+命令：
+awk -F= 'BEGIN{OFS="="} /^[[:space:]]*($|#)/ {next} /KEY|TOKEN|PASSWORD|SECRET|URL/ {v=$2; if (v != "") v="***REDACTED***"; print $1, v}' conf/app.env
+预期结果：
+DATABASE_URL=***REDACTED***
+REDIS_URL=***REDACTED***
+API_KEY=***REDACTED***
+TOKEN=***REDACTED***
+参数/语法说明：
+BEGIN 设置 OFS；正则匹配敏感 key；变量 v 保存并替换输出值。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+共享日志、提交工单、贴配置前必须脱敏，避免泄漏密钥和连接串。
+
+Q17. match + RSTART/RLENGTH：提取日志片段
+原题/增强题：从 logs/app.log 中提取 request_id=... 和 path=... 字段。
+命令：
+awk '{ if (match($0, /request_id=[^ ]+/)) print substr($0, RSTART, RLENGTH); if (match($0, /path=[^ ]+/)) print substr($0, RSTART, RLENGTH) }' logs/app.log
+预期结果：
+request_id=abc-123
+path=/api/v1/orders
+参数/语法说明：
+match 设置 RSTART/RLENGTH；substr 根据位置和长度截取匹配文本。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+从长日志里抽 request_id/path/order_id 等关键字段，方便追踪链路。
+
+Q18. length/substr/index：字符串检查
+原题/增强题：检查 conf/app.env 中 API_KEY 和 TOKEN 的长度、前缀，以及是否包含 live。
+命令：
+awk -F= '$1 == "API_KEY" || $1 == "TOKEN" { printf "%s length=%d prefix=%s contains_live=%s\n", $1, length($2), substr($2,1,7), (index($2,"live") ? "yes" : "no") }' conf/app.env
+预期结果：
+API_KEY length=19 prefix=sk_live contains_live=yes
+TOKEN length=12 prefix=abcDEF1 contains_live=no
+参数/语法说明：
+length 取长度；substr 取子串；index 查找子串，找到返回位置，没找到返回 0。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+检查密钥格式、前缀、长度是否符合规范，适合轻量合规检查。
+
+Q19. NF 数据质量检查
+原题/增强题：检查 data/incidents.tsv 每行字段数是否与表头一致。
+命令：
+awk -F '\t' 'NR==1 { expected=NF; print "expected_fields=" expected; next } NF != expected { print "BAD", FNR, "fields=" NF, $0; bad++ } END { print "checked=" NR-1, "bad=" bad+0 }' data/incidents.tsv
+预期结果：
+expected_fields=4
+checked=6 bad=0
+参数/语法说明：
+NF 检查字段数量；FNR 是当前文件内行号；bad+0 避免未初始化变量显示为空。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+导入 CSV/TSV 前先做字段数检查，可避免后续 join 和统计结果错乱。
+
+Q20. next：跳过注释和空行
+原题/增强题：读取 conf/sshd_config，跳过注释行和空行，输出真实生效行及文件内行号。
+命令：
+awk '/^[[:space:]]*#/ { next } /^[[:space:]]*$/ { next } { print FNR ":" $0 }' conf/sshd_config
+预期结果：
+2:PermitRootLogin yes
+3:PasswordAuthentication yes
+4:PubkeyAuthentication yes
+6:AllowUsers deploy ubuntu
+7:Port 22
+参数/语法说明：
+next 立即进入下一行；FNR 输出当前文件行号；[[:space:]] 匹配空白字符。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+配置文件审计时必须跳过注释，否则会把“示例配置”误判成生效配置。
+
+Q21. 业务 5xx 分析：排除健康检查
+原题/增强题：读取 logs/access.log，统计 HTTP 5xx，排除 /health，只输出 路径 状态码 次数。
+命令：
+awk '$9 ~ /^5[0-9][0-9]$/ && $7 != "/health" { key=$7 " " $9; count[key]++ } END { for (key in count) print key, count[key] }' logs/access.log | sort
+预期结果：
+/api/v1/orders 500 1
+/api/v1/orders 502 1
+参数/语法说明：
+$9 是状态码；$7 是路径；/^5[0-9][0-9]$/ 精确匹配三位 5xx。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+健康检查失败和真实业务失败要分开看，否则容易误判故障面。
+
+Q22. Web 可疑请求初筛
+原题/增强题：找出访问 /admin、/.env、/wp-login.php、../ 路径或 User-Agent 为 sqlmap 的请求。
+命令：
+awk '$7 ~ /(\.env|wp-login|\.\.\/|\/admin)/ || $12 ~ /sqlmap/ { print $1, $7, $9, $12 }' logs/access.log
+预期结果：
+203.0.113.7 /admin 403 "Mozilla/5.0"
+203.0.113.7 /../../etc/passwd 400 "sqlmap/1.7"
+203.0.113.9 /wp-login.php 404 "Mozilla/5.0"
+203.0.113.9 /.env 404 "Mozilla/5.0"
+参数/语法说明：
+字段 $7 是路径；$12 在本日志格式中是 User-Agent；正则用 | 表示或。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+对 Web 扫描、路径穿越、敏感文件探测做快速初筛。
+
+Q23. SSH 暴力破解阈值
+原题/增强题：统计 Failed password 来源 IP，只输出失败次数 >= 2 的 IP。
+命令：
+awk 'tolower($0) ~ /failed password/ { for (i=1;i<=NF;i++) if ($i == "from") fail[$(i+1)]++ } END { for (ip in fail) if (fail[ip] >= 2) print ip, fail[ip] }' logs/auth.log | sort
+预期结果：
+203.0.113.7 2
+参数/语法说明：
+在 END 中用 if (fail[ip] >= 2) 做阈值过滤。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+安全告警通常需要阈值，避免把一次输错密码当成攻击。
+
+Q24. -v 传入阈值：磁盘告警可参数化
+原题/增强题：用 -v threshold=85 控制磁盘使用率阈值，输出告警记录。
+校正/补充：新增补漏：原文提到 -v，但缺少单独题。-v 是把 shell/脚本参数安全传入 awk 的标准方式。
+命令：
+awk -v threshold=85 'NR>1 { use=$5; gsub(/%/,"",use); if (use >= threshold) print "ALERT", "threshold=" threshold, "fs=" $1, "use=" use "%", "mount=" $6 }' data/disk.txt
+预期结果：
+ALERT threshold=85 fs=/dev/vdb1 use=91% mount=/var
+ALERT threshold=85 fs=/dev/vdd1 use=92% mount=/backup
+参数/语法说明：
+-v threshold=85 在 BEGIN 之前赋值，让 awk 内部可直接使用 threshold。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+同一个脚本在不同环境阈值不同，-v 让脚本可参数化、可复用。
+
+Q25. 进程快照：高 CPU + 按命令汇总 RSS
+原题/增强题：读取 data/ps_snapshot.txt，输出 CPU >= 50 的进程，并按 COMMAND 累计 RSS。
+命令：
+awk 'NR==1{next} $3 >= 50 { print "HIGH_CPU", "pid=" $2, "cpu=" $3, "mem=" $4, "cmd=" $6 } { rss[$6] += $5 } END { print "--- RSS_BY_COMMAND ---"; for (cmd in rss) print cmd, rss[cmd] }' data/ps_snapshot.txt | sort
+预期结果：
+--- RSS_BY_COMMAND ---
+HIGH_CPU pid=3101 cpu=75.3 mem=18.5 cmd=python
+HIGH_CPU pid=3102 cpu=65.8 mem=17.1 cmd=python
+nginx 164500
+postgres 1200000
+python 1424000
+redis-server 216000
+systemd 1200
+参数/语法说明：
+多个规则可对同一行执行；数组 rss[$6]+=$5 按 COMMAND 汇总 RSS。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+线上排查既要看单个高 CPU 进程，也要看同类进程总内存。
+
+Q26. key=value 日志聚合：按服务统计错误和平均耗时
+原题/增强题：只分析 logs/app.log 的 ERROR/FATAL 行，按 service 统计错误次数和平均 duration_ms。
+命令：
+awk '$0 ~ /ERROR|FATAL/ { svc="unknown"; dur=0; for (i=1;i<=NF;i++) { if ($i ~ /^service=/) { split($i,a,"="); svc=a[2] } if ($i ~ /^duration_ms=/) { split($i,b,"="); dur=b[2] } } count[svc]++; sum[svc]+=dur } END { for (svc in count) printf "%s errors=%d avg_duration_ms=%.2f\n", svc, count[svc], sum[svc]/count[svc] }' logs/app.log | sort
+预期结果：
+api errors=2 avg_duration_ms=1570.00
+payment errors=1 avg_duration_ms=850.00
+worker errors=2 avg_duration_ms=320.00
+参数/语法说明：
+每行先重置 svc/dur，避免沿用上一行变量；数组 count/sum 按服务聚合。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+按服务统计错误和耗时，是微服务日志日报和故障定位核心能力。
+
+Q27. 按分钟和级别聚合应用日志
+原题/增强题：按分钟和日志级别统计 logs/app.log 的 INFO/WARN/WARNING/ERROR/FATAL。
+命令：
+awk '{ minute=substr($1,12,5); level=toupper($2); if (level ~ /^(INFO|WARN|WARNING|ERROR|FATAL)$/) c[minute,level]++ } END { for (k in c) { split(k,a,SUBSEP); print a[1], a[2], c[k] } }' logs/app.log | sort
+预期结果：
+08:00 ERROR 2
+08:00 INFO 2
+08:00 WARN 1
+08:01 WARNING 1
+08:02 FATAL 1
+08:03 ERROR 1
+08:04 INFO 1
+08:05 ERROR 1
+参数/语法说明：
+substr($1,12,5) 取 HH:MM；SUBSEP 是多维数组下标连接符。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+按时间桶聚合可判断错误是否集中爆发，以及故障开始/恢复时间。
+
+Q28. Kubelet 日志级别统计
+原题/增强题：读取 logs/kubelet.log，按 I/W/E 统计数量。
+命令：
+awk '{ sev=substr($6,1,1); if (sev ~ /^[IWE]$/) c[sev]++ } END { for (sev in c) print sev, c[sev] }' logs/kubelet.log | sort
+预期结果：
+E 2
+I 2
+W 1
+参数/语法说明：
+substr($6,1,1) 取 kubelet 级别首字母；数组按级别计数。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+Kubernetes 节点排查时，可快速估计 kubelet 信息、警告、错误分布。
+
+Q29. find + awk 配置安全审计
+原题/增强题：在 conf/ 中找未注释的 PermitRootLogin yes、PasswordAuthentication yes、server_tokens on;，输出 文件:行号:原始行。
+命令：
+find conf -type f -exec awk '/^[[:space:]]*#/ { next } /^[[:space:]]*PermitRootLogin[[:space:]]+yes[[:space:]]*$/ || /^[[:space:]]*PasswordAuthentication[[:space:]]+yes[[:space:]]*$/ || /^[[:space:]]*server_tokens[[:space:]]+on[[:space:]]*;/ { print FILENAME ":" FNR ":" $0 }' {} + | sort
+预期结果：
+conf/nginx.conf:7: server_tokens on;
+conf/sshd_config:2:PermitRootLogin yes
+conf/sshd_config:3:PasswordAuthentication yes
+参数/语法说明：
+find -type f 只选普通文件；FILENAME/FNR 给出可定位证据；next 跳过注释。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+把 find 的文件遍历和 awk 的规则匹配结合，就是轻量安全审计器。
+
+Q30. find + awk 敏感信息初筛
+原题/增强题：在 conf/ 和 src/ 中找 API key、token、默认密码、JWT secret、数据库凭据等敏感线索。
+校正/补充：新增补漏：原文的安全审计集中在危险配置，本题补充敏感凭据初筛，并刻意避免把 server_tokens、PasswordAuthentication 这类非凭据配置当成 token/password 泄漏。
+命令：
+find conf src -type f -exec awk 'tolower($0) ~ /(api_key|^token=|default_password|jwtsecret|database_url|secret@)/ { print FILENAME ":" FNR ":" $0 }' {} + | sort
+预期结果：
+conf/app.env:4:DATABASE_URL=postgres://app:secret@db01.prod.example.com:5432/app
+conf/app.env:6:API_KEY=sk_live_demo_123456
+conf/app.env:7:TOKEN=abcDEF123456
+src/app.py:5:DEFAULT_PASSWORD = "demo-password"
+src/auth.js:1:const jwtSecret = process.env.JWT_SECRET;
+参数/语法说明：
+tolower 统一大小写；FILENAME/FNR 定位；正则做凭据关键词初筛。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+发布前或事故后快速找明文凭据，降低配置泄漏风险。
+
+Q31. 多文件关联：用主机清单补全事件
+原题/增强题：用 data/inventory.tsv 补全 data/incidents.tsv，输出 时间 主机 IP 角色 环境 级别 消息；未知主机输出 UNKNOWN。
+命令：
+awk -F '\t' 'FNR==NR && NR>1 { ip[$1]=$2; role[$1]=$3; env[$1]=$4; next } FNR>1 { h=$2; if (h in ip) print $1, h, ip[h], role[h], env[h], $3, $4; else print $1, h, "UNKNOWN", "UNKNOWN", "UNKNOWN", $3, $4 }' data/inventory.tsv data/incidents.tsv
+预期结果：
+08:00 api01 10.10.0.21 api prod WARN cpu high
+08:01 api02 10.10.0.22 api prod ERROR latency spike
+08:02 db01 10.20.0.11 database prod ERROR connections saturated
+08:03 web01 192.168.1.10 frontend prod INFO manual reload
+08:04 unknown01 UNKNOWN UNKNOWN UNKNOWN ERROR missing from inventory
+08:05 db01 10.20.0.11 database prod FATAL disk full
+参数/语法说明：
+FNR==NR 识别第一个文件；数组保存主机映射；(h in ip) 判断键是否存在。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+告警事件通常只有 host，需要关联 CMDB/主机清单补全 IP、角色、环境。
+
+Q32. 按负责人统计故障事件
+原题/增强题：结合 inventory.tsv 和 incidents.tsv，只统计 ERROR/FATAL，按 owner 输出事件数。
+命令：
+awk -F '\t' 'FNR==NR && NR>1 { owner[$1]=$5; next } FNR>1 && $3 ~ /ERROR|FATAL/ { h=$2; o=(h in owner ? owner[h] : "UNKNOWN"); c[o]++ } END { for (o in c) print o, c[o] }' data/inventory.tsv data/incidents.tsv | sort
+预期结果：
+UNKNOWN 1
+app-team 1
+dba-team 2
+参数/语法说明：
+第一个文件建立 host->owner 映射；第二个文件按 ERROR/FATAL 过滤并按 owner 计数。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+按团队/负责人统计故障，有助于值班交接和责任归属。
+
+Q33. 多文件差集：检查必装包缺失
+原题/增强题：用 data/required_packages.txt 对比 data/packages.txt，输出缺失或未 installed 的包。
+命令：
+awk 'FNR==NR { required[$1]=1; next } { installed[$1]=($3=="installed") } END { for (p in required) if (!installed[p]) print "MISSING_OR_NOT_INSTALLED", p }' data/required_packages.txt data/packages.txt | sort
+预期结果：
+MISSING_OR_NOT_INSTALLED fail2ban
+参数/语法说明：
+第一个文件保存 required；第二个文件保存 installed 状态；END 做差集检查。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+基线合规检查：必装包、必开服务、必备配置都能用类似差集做。
+
+Q34. 目录级审计：FILENAME/FNR 定位证据
+原题/增强题：在 logs、conf、src 中搜索 ERROR/FATAL/TODO/FIXME，输出 文件:行号:内容。
+命令：
+find logs conf src -type f | sort | xargs awk '/ERROR|FATAL|TODO|FIXME/ { print FILENAME ":" FNR ":" $0 }' | head -10
+预期结果：
+logs/app.log:4:2026-07-03T08:00:07+09:00 ERROR service=api database timeout host=db01.prod.example.com duration_ms=3100
+logs/app.log:5:2026-07-03T08:00:08+09:00 ERROR service=payment payment failed order_id=ORD-20260703-0001 status=502 duration_ms=850
+logs/app.log:8:2026-07-03T08:02:10+09:00 FATAL service=worker out of memory pid=2222 duration_ms=0
+logs/app.log:10:2026-07-03T08:03:01+09:00 ERROR service=api password reset token leaked? token=abcDEF123456 duration_ms=40
+logs/app.log:12:2026-07-03T08:05:00+09:00 ERROR service=worker job failed queue=critical duration_ms=640
+src/app.py:4:# TODO: move this to a secret manager
+src/auth.js:3:// FIXME: temporary debug bypass
+参数/语法说明：
+find 负责找文件；awk 负责内容匹配；FILENAME:FNR:$0 是审计输出标准形态。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+目录级证据定位是排障、审计、代码扫描的共同输出格式。
+
+Q35. 多文件状态重置：按文件统计 5xx
+原题/增强题：同时读取 logs/access_yesterday.log 和 logs/access.log，分别输出每个文件的 5xx 数量。
+命令：
+awk 'FNR==1 && NR>1 { print prev, bad; bad=0 } { prev=FILENAME } $9 ~ /^5[0-9][0-9]$/ { bad++ } END { print prev, bad }' logs/access_yesterday.log logs/access.log
+预期结果：
+logs/access_yesterday.log 1
+logs/access.log 3
+参数/语法说明：
+NR 全局递增，FNR 每个文件重置；遇到新文件第一行时输出上个文件汇总并清零。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+批量处理多天日志时，每个文件的统计必须重置，否则结果会串。
+
+Q36. RS 记录分隔符：解析空行分隔的工单块
+原题/增强题：读取 data/tickets.txt，把空行分隔的每个工单块解析为 Ticket、Host、Severity。
+校正/补充：新增补漏：原文没有覆盖 RS。RS 能把“行”改成“段落/块”，处理工单、邮件、YAML 片段时很有用。
+命令：
+awk 'BEGIN{RS=""; FS="\n"} { ticket=host=sev=""; for (i=1;i<=NF;i++) { if ($i ~ /^Ticket:/) ticket=$i; if ($i ~ /^Host:/) host=$i; if ($i ~ /^Severity:/) sev=$i } print ticket, host, sev }' data/tickets.txt
+预期结果：
+Ticket: INC-1001 Host: api01 Severity: WARN
+Ticket: INC-1002 Host: db01 Severity: FATAL
+Ticket: INC-1003 Host: web01 Severity: INFO
+参数/语法说明：
+RS="" 表示空行分隔记录；FS="\n" 表示每个块内按行切字段。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+很多文本不是“一行一条记录”，而是“空行分隔一块”；RS 解决这类格式。
+
+Q37. ORS/printf：生成逗号分隔列表
+原题/增强题：读取 data/packages.txt，把 installed 包名输出成一行逗号分隔列表，末尾不要多余逗号。
+校正/补充：新增补漏：原文提到 OFS，但没有练习 ORS/printf 生成列表。本题练习无尾逗号输出。
+命令：
+awk '{ if ($3=="installed") { if (n++) printf ","; printf $1 } } END { printf "\n" }' data/packages.txt
+预期结果：
+nginx,openssh-server,postgresql-client,curl,nodejs
+参数/语法说明：
+printf 不自动换行；n++ 可判断是否需要先输出逗号，避免尾逗号。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+把查询结果拼成参数列表、通知内容、CSV 单行摘要时非常实用。
+
+Q38. 自定义函数：RSS KB 转 MB
+原题/增强题：读取 data/ps_snapshot.txt，把 RSS 从 KB 转成 MB 输出。
+命令：
+awk 'function mb(kb){ return kb/1024 } NR>1 { printf "%-12s %8.1f MB\n", $6, mb($5) }' data/ps_snapshot.txt
+预期结果：
+systemd           1.2 MB
+nginx            82.5 MB
+nginx            78.1 MB
+python          722.7 MB
+python          668.0 MB
+postgres       1171.9 MB
+redis-server    210.9 MB
+参数/语法说明：
+function name(args){...} 定义函数；return 返回计算结果。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+函数能减少重复表达式，让较长 awk 脚本更可维护。
+
+Q39. 三元表达式：OK/WARNING/CRITICAL 分类
+原题/增强题：读取 data/metrics.csv，用 warn=85、crit=90，把每条记录分类为 OK、WARNING、CRITICAL。
+命令：
+awk -F, -v warn=85 -v crit=90 'NR>1 { status=($3>=crit || $4>=crit) ? "CRITICAL" : (($3>=warn || $4>=warn) ? "WARNING" : "OK"); print $1, $2, status }' data/metrics.csv
+预期结果：
+08:00 web01 OK
+08:00 api01 WARNING
+08:00 api02 CRITICAL
+08:00 db01 WARNING
+08:05 web01 OK
+08:05 api01 CRITICAL
+08:05 api02 OK
+08:05 db01 CRITICAL
+参数/语法说明：
+三元表达式 condition ? a : b 适合简短分类；-v 传入 warn/crit 阈值。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+监控告警经常有多级阈值，三元表达式能让简单分类很紧凑。
+
+Q40. awk -f 脚本化巡检报告
+原题/增强题：创建 tmp/ops_report.awk，使用 -f 和 -v cpu_warn/mem_warn 生成指标巡检报告。
+校正/补充：原文增强：原题已有 awk -f。本版增加 -v cpu_warn/mem_warn，让脚本可复用，不把阈值写死。
+命令：
+cat > tmp/ops_report.awk <<'AWK'
+BEGIN {
+  FS=","
+  printf "%-8s %-8s %8s %8s %-8s\n", "TIME", "HOST", "CPU", "MEM", "STATUS"
+}
+NR==1 { next }
+{
+  total++
+  status="OK"
+  if ($3 >= cpu_warn || $4 >= mem_warn) { status="ALERT"; alerts++ }
+  printf "%-8s %-8s %8.1f %8.1f %-8s\n", $1, $2, $3, $4, status
+}
+END {
+  print "----------------------------------------"
+  printf "total=%d alerts=%d\n", total, alerts
+}
+AWK
+awk -v cpu_warn=85 -v mem_warn=85 -f tmp/ops_report.awk data/metrics.csv
+预期结果：
+TIME     HOST          CPU      MEM STATUS  
+08:00    web01        32.5     61.2 OK      
+08:00    api01        87.1     72.3 ALERT   
+08:00    api02        91.4     80.1 ALERT   
+08:00    db01         76.8     88.9 ALERT   
+08:05    web01        38.2     63.0 OK      
+08:05    api01        92.7     83.4 ALERT   
+08:05    api02        79.5     78.8 OK      
+08:05    db01         84.2     91.5 ALERT   
+----------------------------------------
+total=8 alerts=5
+参数/语法说明：
+-f 从脚本文件读取 awk 程序；-v 传入阈值；BEGIN/END 组织完整报表。
+命令解释：
+awk 会逐条读取输入记录，先判断 pattern 是否成立，再执行 action。本题把字段、变量、函数或数组组合起来，完成题目要求；如果命令末尾接了 sort/head/find/xargs，那是为了让输出顺序稳定或进行目录级批处理。
+实践用途：
+当 awk 变长，就应脚本化，便于版本管理、复用、代码审查。
+
+Q41. 识别 awk 实现与常用调试/兼容选项
+原题/增强题：查看当前系统 awk 是 mawk 还是 gawk；如果安装了 gawk，再查看 gawk 版本，并说明 -W version、--version、--lint、--posix 分别适合什么时候使用。
+命令：
+awk -W version 2>&1 | head -1
+# 如果系统安装了 gawk：
+gawk --version | head -1
+gawk --lint 'BEGIN { print 1 }'
+gawk --posix 'BEGIN { print "posix mode" }'
+预期结果：
+输出会因系统而异。Ubuntu 上常见结果可能是 mawk 1.x 或 GNU Awk 5.x。
+如果 gawk 存在，--version 会输出 GNU Awk 的版本；--lint 对可疑/不可移植写法给警告；--posix 会关闭 GNU 扩展并按 POSIX 兼容模式运行。
+参数/语法说明：
+-W version/--version 用于查版本；--lint 用于可移植性检查；--posix 用于确认脚本是否依赖 GNU 扩展。
+命令解释：
+这题标注为 GNU awk/实现相关时，不要默认系统 awk 一定支持。Ubuntu 上 /usr/bin/awk 可能是 mawk，也可能是 gawk；使用这些扩展前应先确认 awk 实现。
+实践用途：
+排障时先确认 awk 实现非常关键。脚本在你机器上能跑，在生产 Ubuntu 镜像或最小容器里可能因为 awk=mawk 而缺少 gawk 扩展。
+
+Q42. GNU awk 5.3+：用 --csv 正确处理带引号逗号的 CSV
+原题/增强题：读取 data/quoted_users.csv，正确输出 name 和 note。要求 Alice 的 name 中包含逗号时不能被拆坏。
+命令：
+gawk --csv 'NR > 1 { print $2 " | " $5 }' data/quoted_users.csv
+预期结果：
+Alice, A. | owner of api, billing
+Bob | regular user
+参数/语法说明：
+--csv 是 GNU awk 的 CSV 特殊处理模式；它不是 POSIX awk/mawk 的通用能力。
+命令解释：
+这题标注为 GNU awk/实现相关时，不要默认系统 awk 一定支持。Ubuntu 上 /usr/bin/awk 可能是 mawk，也可能是 gawk；使用这些扩展前应先确认 awk 实现。
+实践用途：
+真实 CSV 经常有引号、逗号、换行等情况。简单 awk -F, 只能处理“没有复杂引号”的 CSV；遇到正式 CSV 应优先用 --csv、csvkit、Miller 或 Python。
+
+Q43. GNU awk：FIELDWIDTHS 处理固定宽度文本
+原题/增强题：读取 data/fixed_width.txt，按固定列宽切分 HOST、CPU、MEM、STATUS，输出主机和状态。
+命令：
+gawk 'BEGIN { FIELDWIDTHS="10 5 5 6" } NR>1 { for(i=1;i<=NF;i++) gsub(/^ +| +$/,"",$i); print $1, "cpu=" $2, "mem=" $3, "status=" $4 }' data/fixed_width.txt
+预期结果：
+web01 cpu=032 mem=061 status=OK
+api01 cpu=087 mem=072 status=ALERT
+api02 cpu=091 mem=080 status=ALERT
+db01 cpu=084 mem=092 status=ALERT
+参数/语法说明：
+FIELDWIDTHS 用“每列宽度”切字段，而不是用分隔符切字段。
+命令解释：
+这题标注为 GNU awk/实现相关时，不要默认系统 awk 一定支持。Ubuntu 上 /usr/bin/awk 可能是 mawk，也可能是 gawk；使用这些扩展前应先确认 awk 实现。
+实践用途：
+老系统报表、主机设备输出、银行/主机批处理文件常见固定宽度格式；这时 FS 不好用，FIELDWIDTHS 更合适。
+
+Q44. GNU awk：FPAT 按“字段内容”而不是分隔符切分
+原题/增强题：读取 data/quoted_users.csv，用 FPAT 粗略处理“普通字段或双引号字段”，输出 name 和 role。
+命令：
+gawk 'BEGIN { FPAT="([^,]+)|(\"[^\"]+\")" } NR>1 { gsub(/^\"|\"$/,"",$2); print $2, $4 }' data/quoted_users.csv
+预期结果：
+Alice, A. admin
+Bob user
+参数/语法说明：
+FPAT 描述“字段长什么样”，FS 描述“字段之间用什么分隔”。FPAT 是 gawk 扩展。
+命令解释：
+这题标注为 GNU awk/实现相关时，不要默认系统 awk 一定支持。Ubuntu 上 /usr/bin/awk 可能是 mawk，也可能是 gawk；使用这些扩展前应先确认 awk 实现。
+实践用途：
+当分隔符可能出现在引号内部时，FS 会误切；FPAT 可临时救急。但 CSV 专用场景仍优先 --csv。
+
+Q45. GNU awk：asorti 按键排序输出数组
+原题/增强题：按 service 统计 ERROR/FATAL 次数，并按服务名排序输出。
+命令：
+gawk '$0 ~ /ERROR|FATAL/ { svc="unknown"; for(i=1;i<=NF;i++) if($i~/^service=/){split($i,a,"="); svc=a[2]} count[svc]++ } END { n=asorti(count, keys); for(i=1;i<=n;i++){svc=keys[i]; print svc, count[svc]} }' logs/app.log
+预期结果：
+api 2
+payment 1
+worker 2
+参数/语法说明：
+asorti(array, dest) 把数组下标排序后放入 dest[1..n]，返回元素数量。
+命令解释：
+这题标注为 GNU awk/实现相关时，不要默认系统 awk 一定支持。Ubuntu 上 /usr/bin/awk 可能是 mawk，也可能是 gawk；使用这些扩展前应先确认 awk 实现。
+实践用途：
+awk 数组默认遍历顺序不稳定。写报表、告警摘要、CI 输出时，排序能让结果可读、可对比、可测试。mawk 可用 awk 输出后接 sort 替代。
+
+Q46. GNU awk：gensub 精准替换并保留捕获组
+原题/增强题：只输出 logs/app.log 中含 token= 的行，并把 token 值替换成 ***。
+命令：
+gawk '$0 ~ /token=/ { print gensub(/(token=)[^ ]+/, "\\1***", "g") }' logs/app.log
+预期结果：
+2026-07-03T08:03:01+09:00 ERROR service=api password reset token leaked? token=*** duration_ms=40
+参数/语法说明：
+gensub(regexp, replacement, how) 是 gawk 扩展；replacement 里可用 \1、\2 引用捕获组。
+命令解释：
+这题标注为 GNU awk/实现相关时，不要默认系统 awk 一定支持。Ubuntu 上 /usr/bin/awk 可能是 mawk，也可能是 gawk；使用这些扩展前应先确认 awk 实现。
+实践用途：
+脱敏日志时，经常要保留 key 名、隐藏 value。POSIX awk 可用 sub/gsub，但 gensub 在复杂保留替换上更方便。
+
+三、最终能力清单
+1. 入门必须会：$0、$1、$NF、NF、NR、print、-F、正则匹配 ~。
+2. 日常运维必须会：tolower/toupper、数值比较、BEGIN/END、printf、split、sub/gsub、match、数组 count[key]++、sum[key]+=value。
+3. 日志/审计必须会：FILENAME、FNR、find -exec awk、跳过注释、输出 文件:行号:内容。
+4. 报表/脚本化必须会：OFS、ORS、RS、-v、awk -f、自定义函数、阈值参数化。
+5. 高级/精通方向：多文件 join、状态重置、CSV 正确处理、gawk --csv、FIELDWIDTHS、FPAT、asorti、gensub、--lint、--posix。
+
+四、推荐练习顺序
+第 1 阶段：Q01-Q10，字段、分隔符、过滤、数值比较、printf。
+第 2 阶段：Q11-Q20，统计、函数、字符串处理、数据质量检查。
+第 3 阶段：Q21-Q30，日志、安全、配置审计、Kubernetes/进程/磁盘实战。
+第 4 阶段：Q31-Q40，多文件关联、差集、RS/ORS、函数、脚本化。
+第 5 阶段：Q41-Q46，GNU awk 扩展与跨实现兼容性。
+
+一句话总结：grep 擅长找行，sed 擅长改行，awk 擅长把文本当成结构化数据来筛选、计算、分组、关联和生成报表。

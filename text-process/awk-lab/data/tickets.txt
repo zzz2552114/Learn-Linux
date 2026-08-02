@@ -1,0 +1,14 @@
+Ticket: INC-1001
+Host: api01
+Severity: WARN
+Message: cpu high
+
+Ticket: INC-1002
+Host: db01
+Severity: FATAL
+Message: disk full
+
+Ticket: INC-1003
+Host: web01
+Severity: INFO
+Message: manual reload

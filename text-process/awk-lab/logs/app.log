@@ -1,0 +1,12 @@
+2026-07-03T08:00:01+09:00 INFO service=api app started env=prod version=2.1.0
+2026-07-03T08:00:02+09:00 DEBUG service=api loading config file=/etc/app/app.env
+2026-07-03T08:00:05+09:00 WARN service=api cache miss user_id=42 duration_ms=120
+2026-07-03T08:00:07+09:00 ERROR service=api database timeout host=db01.prod.example.com duration_ms=3100
+2026-07-03T08:00:08+09:00 ERROR service=payment payment failed order_id=ORD-20260703-0001 status=502 duration_ms=850
+2026-07-03T08:00:09+09:00 INFO service=api health check ok status=200 duration_ms=12
+2026-07-03T08:01:10+09:00 warning service=worker disk space low mount=/var usage=86% duration_ms=45
+2026-07-03T08:02:10+09:00 FATAL service=worker out of memory pid=2222 duration_ms=0
+2026-07-03T08:02:11+09:00 TRACE service=api request_id=abc-123 path=/api/v1/orders duration_ms=77
+2026-07-03T08:03:01+09:00 ERROR service=api password reset token leaked? token=abcDEF123456 duration_ms=40
+2026-07-03T08:04:00+09:00 INFO service=api request completed status=201 duration_ms=88
+2026-07-03T08:05:00+09:00 ERROR service=worker job failed queue=critical duration_ms=640

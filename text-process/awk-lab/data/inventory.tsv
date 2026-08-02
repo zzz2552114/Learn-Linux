@@ -1,0 +1,7 @@
+host	ip	role	env	owner
+web01	192.168.1.10	frontend	prod	web-team
+api01	10.10.0.21	api	prod	app-team
+api02	10.10.0.22	api	prod	app-team
+db01	10.20.0.11	database	prod	dba-team
+dev01	172.16.5.9	dev	dev	platform
+bastion01	203.0.113.20	bastion	prod	security

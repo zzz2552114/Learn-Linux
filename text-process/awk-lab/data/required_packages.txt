@@ -1,0 +1,6 @@
+nginx
+openssh-server
+curl
+fail2ban
+nodejs
+redis-server

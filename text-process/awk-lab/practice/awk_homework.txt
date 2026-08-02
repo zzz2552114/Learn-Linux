@@ -1,0 +1,342 @@
+Ubuntu awk 命令练习题：从入门到运维精通（仅题目版）
+
+说明：本版在原始 10+8 题基础上补齐了 -v、OFS/ORS/RS、NF/FNR/FILENAME、match/RSTART/RLENGTH、sub/gsub、字符串函数、多文件状态重置、GNU awk 扩展等常见疏漏。前 40 题尽量使用通用 awk，可在 mawk/gawk 上练习；第 41-46 题标注为 GNU awk 专属或实现相关。
+
+第 0 部分：生成练习材料
+复制执行下面命令，然后进入 awk-lab 目录：
+
+rm -rf awk-lab
+mkdir -p awk-lab/{logs,conf,data,src,reports,tmp}
+cat > awk-lab/logs/app.log <<'APPLOG'
+2026-07-03T08:00:01+09:00 INFO service=api app started env=prod version=2.1.0
+2026-07-03T08:00:02+09:00 DEBUG service=api loading config file=/etc/app/app.env
+2026-07-03T08:00:05+09:00 WARN service=api cache miss user_id=42 duration_ms=120
+2026-07-03T08:00:07+09:00 ERROR service=api database timeout host=db01.prod.example.com duration_ms=3100
+2026-07-03T08:00:08+09:00 ERROR service=payment payment failed order_id=ORD-20260703-0001 status=502 duration_ms=850
+2026-07-03T08:00:09+09:00 INFO service=api health check ok status=200 duration_ms=12
+2026-07-03T08:01:10+09:00 warning service=worker disk space low mount=/var usage=86% duration_ms=45
+2026-07-03T08:02:10+09:00 FATAL service=worker out of memory pid=2222 duration_ms=0
+2026-07-03T08:02:11+09:00 TRACE service=api request_id=abc-123 path=/api/v1/orders duration_ms=77
+2026-07-03T08:03:01+09:00 ERROR service=api password reset token leaked? token=abcDEF123456 duration_ms=40
+2026-07-03T08:04:00+09:00 INFO service=api request completed status=201 duration_ms=88
+2026-07-03T08:05:00+09:00 ERROR service=worker job failed queue=critical duration_ms=640
+APPLOG
+cat > awk-lab/logs/access.log <<'ACCESS'
+192.168.1.10 - - [03/Jul/2026:08:00:01 +0900] "GET / HTTP/1.1" 200 612 "-" "curl/8.5"
+203.0.113.7 - - [03/Jul/2026:08:00:02 +0900] "GET /admin HTTP/1.1" 403 142 "-" "Mozilla/5.0"
+198.51.100.23 - - [03/Jul/2026:08:00:03 +0900] "POST /login HTTP/1.1" 401 98 "-" "Mozilla/5.0"
+198.51.100.23 - - [03/Jul/2026:08:00:04 +0900] "POST /login HTTP/1.1" 401 98 "-" "Mozilla/5.0"
+10.0.0.5 - - [03/Jul/2026:08:01:10 +0900] "GET /health HTTP/1.1" 200 2 "-" "kube-probe/1.29"
+192.168.1.10 - - [03/Jul/2026:08:02:11 +0900] "GET /api/v1/users?id=42 HTTP/1.1" 200 923 "-" "Mozilla/5.0"
+203.0.113.7 - - [03/Jul/2026:08:03:12 +0900] "GET /../../etc/passwd HTTP/1.1" 400 51 "-" "sqlmap/1.7"
+203.0.113.9 - - [03/Jul/2026:08:04:13 +0900] "GET /wp-login.php HTTP/1.1" 404 153 "-" "Mozilla/5.0"
+203.0.113.9 - - [03/Jul/2026:08:04:20 +0900] "GET /.env HTTP/1.1" 404 153 "-" "Mozilla/5.0"
+198.51.100.77 - - [03/Jul/2026:08:05:00 +0900] "GET /api/v1/orders HTTP/1.1" 500 35 "-" "Mozilla/5.0"
+198.51.100.77 - - [03/Jul/2026:08:05:01 +0900] "GET /api/v1/orders HTTP/1.1" 502 35 "-" "Mozilla/5.0"
+10.0.0.5 - - [03/Jul/2026:08:05:03 +0900] "GET /health HTTP/1.1" 500 19 "-" "kube-probe/1.29"
+ACCESS
+cat > awk-lab/logs/access_yesterday.log <<'ACCESS2'
+192.168.1.10 - - [02/Jul/2026:23:55:01 +0900] "GET / HTTP/1.1" 200 600 "-" "curl/8.5"
+198.51.100.77 - - [02/Jul/2026:23:56:01 +0900] "GET /api/v1/orders HTTP/1.1" 504 35 "-" "Mozilla/5.0"
+203.0.113.7 - - [02/Jul/2026:23:57:12 +0900] "GET /admin HTTP/1.1" 403 142 "-" "Mozilla/5.0"
+ACCESS2
+cat > awk-lab/logs/auth.log <<'AUTH'
+Jul 3 08:00:10 web01 sshd[1201]: Accepted publickey for deploy from 192.168.1.50 port 51344 ssh2
+Jul 3 08:00:12 web01 sshd[1204]: Failed password for invalid user admin from 203.0.113.7 port 49822 ssh2
+Jul 3 08:00:14 web01 sshd[1205]: Failed password for root from 203.0.113.7 port 49824 ssh2
+Jul 3 08:01:01 web01 sudo: deploy : TTY=pts/0 ; PWD=/home/deploy ; USER=root ; COMMAND=/bin/systemctl restart nginx
+Jul 3 08:02:11 web01 sshd[1210]: Invalid user oracle from 198.51.100.23 port 49901
+Jul 3 08:03:09 web01 sshd[1211]: Connection closed by authenticating user root 203.0.113.7 port 50001 [preauth]
+Jul 3 08:05:42 web01 sudo: pam_unix(sudo:session): session opened for user root by deploy(uid=1001)
+Jul 3 08:06:00 web01 sshd[1220]: FAILED PASSWORD for invalid user test from 203.0.113.8 port 49890 ssh2
+Jul 3 08:07:00 web01 sshd[1221]: Failed password for username_root_backup from 203.0.113.10 port 49891 ssh2
+AUTH
+cat > awk-lab/logs/kubelet.log <<'KUBE'
+Jul 03 08:00:01 node01 kubelet[778]: I0703 Started container api-7f9d
+Jul 03 08:00:05 node01 kubelet[778]: W0703 Back-off restarting failed container payment
+Jul 03 08:00:08 node01 kubelet[778]: E0703 Error syncing pod, skipping: failed to StartContainer
+Jul 03 08:01:09 node01 kubelet[778]: I0703 Readiness probe succeeded for pod api
+Jul 03 08:02:10 node01 kubelet[778]: E0703 ImagePullBackOff for image registry.example.com/private/payment:2.1.0
+KUBE
+cat > awk-lab/conf/app.env <<'ENV'
+APP_ENV=prod
+DEBUG=false
+LOG_LEVEL=info
+DATABASE_URL=postgres://app:secret@db01.prod.example.com:5432/app
+REDIS_URL=redis://cache01.prod.example.com:6379/0
+API_KEY=sk_live_demo_123456
+TOKEN=abcDEF123456
+EMPTY_VALUE=
+ENV
+cat > awk-lab/conf/sshd_config <<'SSHD'
+#PermitRootLogin prohibit-password
+PermitRootLogin yes
+PasswordAuthentication yes
+PubkeyAuthentication yes
+#AllowUsers deploy
+AllowUsers deploy ubuntu
+Port 22
+SSHD
+cat > awk-lab/conf/nginx.conf <<'NGINX'
+# main nginx config
+user www-data;
+worker_processes auto;
+events { worker_connections 1024; }
+http {
+ # server_tokens off;
+ server_tokens on;
+ include /etc/nginx/mime.types;
+ server {
+ listen 80;
+ server_name example.com www.example.com;
+ root /var/www/html;
+ location /admin { deny all; }
+ location /health { access_log off; return 200 "ok"; }
+ }
+}
+NGINX
+cat > awk-lab/data/users.csv <<'USERS'
+id,name,email,role,last_login
+1,Alice,alice@example.com,admin,2026-07-01
+2,Bob,bob@example.com,user,2026-07-02
+3,Charlie,charlie@example.com,user,never
+4,Diana,diana@example.org,ops,2026-07-03
+5,Eve,eve@example.com,guest,never
+USERS
+cat > awk-lab/data/quoted_users.csv <<'QUSERS'
+id,name,email,role,note
+1,"Alice, A.",alice@example.com,admin,"owner of api, billing"
+2,"Bob",bob@example.com,user,"regular user"
+QUSERS
+cat > awk-lab/data/metrics.csv <<'METRICS'
+time,host,cpu,mem,load1,load5
+08:00,web01,32.5,61.2,0.42,0.35
+08:00,api01,87.1,72.3,2.80,2.15
+08:00,api02,91.4,80.1,3.20,2.90
+08:00,db01,76.8,88.9,4.10,3.75
+08:05,web01,38.2,63.0,0.51,0.44
+08:05,api01,92.7,83.4,3.60,3.10
+08:05,api02,79.5,78.8,2.10,2.00
+08:05,db01,84.2,91.5,4.90,4.20
+METRICS
+printf 'host\tip\trole\tenv\towner\n' > awk-lab/data/inventory.tsv
+printf 'web01\t192.168.1.10\tfrontend\tprod\tweb-team\n' >> awk-lab/data/inventory.tsv
+printf 'api01\t10.10.0.21\tapi\tprod\tapp-team\n' >> awk-lab/data/inventory.tsv
+printf 'api02\t10.10.0.22\tapi\tprod\tapp-team\n' >> awk-lab/data/inventory.tsv
+printf 'db01\t10.20.0.11\tdatabase\tprod\tdba-team\n' >> awk-lab/data/inventory.tsv
+printf 'dev01\t172.16.5.9\tdev\tdev\tplatform\n' >> awk-lab/data/inventory.tsv
+printf 'bastion01\t203.0.113.20\tbastion\tprod\tsecurity\n' >> awk-lab/data/inventory.tsv
+cat > awk-lab/data/disk.txt <<'DISK'
+Filesystem Size Used Avail Use% Mounted-on
+/dev/vda1 40G 28G 12G 70% /
+/dev/vdb1 100G 91G 9G 91% /var
+/dev/vdc1 200G 110G 90G 55% /data
+tmpfs 4.0G 120M 3.9G 3% /run
+/dev/vdd1 50G 46G 4G 92% /backup
+DISK
+cat > awk-lab/data/ps_snapshot.txt <<'PS'
+USER PID %CPU %MEM RSS COMMAND
+root 1 0.0 0.4 1200 systemd
+www-data 2101 5.5 2.1 84500 nginx
+www-data 2102 4.9 2.0 80000 nginx
+app 3101 75.3 18.5 740000 python
+app 3102 65.8 17.1 684000 python
+postgres 4101 22.4 30.2 1200000 postgres
+redis 5101 8.0 5.4 216000 redis-server
+PS
+printf 'time\thost\tlevel\tmessage\n' > awk-lab/data/incidents.tsv
+printf '08:00\tapi01\tWARN\tcpu high\n' >> awk-lab/data/incidents.tsv
+printf '08:01\tapi02\tERROR\tlatency spike\n' >> awk-lab/data/incidents.tsv
+printf '08:02\tdb01\tERROR\tconnections saturated\n' >> awk-lab/data/incidents.tsv
+printf '08:03\tweb01\tINFO\tmanual reload\n' >> awk-lab/data/incidents.tsv
+printf '08:04\tunknown01\tERROR\tmissing from inventory\n' >> awk-lab/data/incidents.tsv
+printf '08:05\tdb01\tFATAL\tdisk full\n' >> awk-lab/data/incidents.tsv
+cat > awk-lab/data/packages.txt <<'PKG'
+nginx 1.24.0 installed
+openssh-server 9.6 installed
+postgresql-client 16 installed
+redis-server 7.0 removed
+curl 8.5 installed
+nodejs 20.11 installed
+old-agent 1.0 removed
+PKG
+cat > awk-lab/data/required_packages.txt <<'REQ'
+nginx
+openssh-server
+curl
+fail2ban
+nodejs
+REQ
+cat > awk-lab/data/tickets.txt <<'TICKETS'
+Ticket: INC-1001
+Host: api01
+Severity: WARN
+Message: cpu high
+
+Ticket: INC-1002
+Host: db01
+Severity: FATAL
+Message: disk full
+
+Ticket: INC-1003
+Host: web01
+Severity: INFO
+Message: manual reload
+TICKETS
+cat > awk-lab/data/fixed_width.txt <<'FIXED'
+HOST      CPU  MEM  STATUS
+web01     032  061  OK
+api01     087  072  ALERT
+api02     091  080  ALERT
+db01      084  092  ALERT
+FIXED
+cat > awk-lab/src/app.py <<'PYAPP'
+import os
+API_ENDPOINT = "https://api.example.com/v1"
+DEBUG = False
+# TODO: move this to a secret manager
+DEFAULT_PASSWORD = "demo-password"
+def health():
+ return "ok"
+PYAPP
+cat > awk-lab/src/auth.js <<'JS'
+const jwtSecret = process.env.JWT_SECRET;
+const retryCount = 3;
+// FIXME: temporary debug bypass
+function login(user, password) {
+ if (user === "admin") {
+ return true;
+ }
+ return false;
+}
+JS
+cd awk-lab
+
+
+题目清单
+Q01. 打印整行和行号
+题目：查看 logs/app.log 的前 3 行，输出格式为 行号:原始行。
+
+Q02. 字段数量 NF 和最后一列 $NF
+题目：读取 data/packages.txt，输出包名、字段数量和最后一列。
+
+Q03. TSV 字段提取：主机名、角色、环境
+题目：读取 data/inventory.tsv，跳过表头，输出 host、role、env。
+
+Q04. CSV 字段提取：姓名、邮箱、角色
+题目：读取 data/users.csv，跳过表头，输出 name、email、role。
+
+Q05. key=value 配置解析
+题目：读取 conf/app.env，输出非空配置项，格式为 KEY => VALUE。
+
+Q06. OFS 控制输出分隔符
+题目：从 data/users.csv 生成只含 name,role 两列的新 CSV。
+
+Q07. 正则过滤日志级别：区分大小写
+题目：从 logs/app.log 输出包含 WARN、ERROR、FATAL 的行，并显示行号。
+
+Q08. 忽略大小写过滤日志级别
+题目：从 logs/app.log 输出 WARN/warning、ERROR、FATAL 的行号和日志级别。
+
+Q09. 数值比较：CPU 或内存过高
+题目：读取 data/metrics.csv，找出 CPU >= 85 或 MEM >= 85 的记录。
+
+Q10. printf 对齐输出报表
+题目：读取 data/metrics.csv，输出 HOST、CPU、MEM 三列对齐报表。
+
+Q11. split + 求平均：duration_ms 平均耗时
+题目：从 logs/app.log 中提取所有 duration_ms=数字，输出样本数和平均耗时。
+
+Q12. 关联数组：按 HTTP 状态码统计
+题目：读取 logs/access.log，统计每个状态码的出现次数，并按状态码排序。
+
+Q13. 认证日志：按 IP 统计失败登录
+题目：读取 logs/auth.log，忽略大小写统计 Failed password 来源 IP。
+
+Q14. BEGIN/END：软件包状态摘要
+题目：读取 data/packages.txt，先输出标题，中间输出包名和状态，最后统计 installed/removed。
+
+Q15. gsub 去单位：磁盘使用率告警
+题目：读取 data/disk.txt，找出 Use% >= 85 的文件系统、使用率和挂载点。
+
+Q16. sub/gsub 思维：配置脱敏
+题目：读取 conf/app.env，输出可能包含敏感信息的 KEY，并把值替换为 ***REDACTED***。
+
+Q17. match + RSTART/RLENGTH：提取日志片段
+题目：从 logs/app.log 中提取 request_id=... 和 path=... 字段。
+
+Q18. length/substr/index：字符串检查
+题目：检查 conf/app.env 中 API_KEY 和 TOKEN 的长度、前缀，以及是否包含 live。
+
+Q19. NF 数据质量检查
+题目：检查 data/incidents.tsv 每行字段数是否与表头一致。
+
+Q20. next：跳过注释和空行
+题目：读取 conf/sshd_config，跳过注释行和空行，输出真实生效行及文件内行号。
+
+Q21. 业务 5xx 分析：排除健康检查
+题目：读取 logs/access.log，统计 HTTP 5xx，排除 /health，只输出 路径 状态码 次数。
+
+Q22. Web 可疑请求初筛
+题目：找出访问 /admin、/.env、/wp-login.php、../ 路径或 User-Agent 为 sqlmap 的请求。
+
+Q23. SSH 暴力破解阈值
+题目：统计 Failed password 来源 IP，只输出失败次数 >= 2 的 IP。
+
+Q24. -v 传入阈值：磁盘告警可参数化
+题目：用 -v threshold=85 控制磁盘使用率阈值，输出告警记录。
+
+Q25. 进程快照：高 CPU + 按命令汇总 RSS
+题目：读取 data/ps_snapshot.txt，输出 CPU >= 50 的进程，并按 COMMAND 累计 RSS。
+
+Q26. key=value 日志聚合：按服务统计错误和平均耗时
+题目：只分析 logs/app.log 的 ERROR/FATAL 行，按 service 统计错误次数和平均 duration_ms。
+
+Q27. 按分钟和级别聚合应用日志
+题目：按分钟和日志级别统计 logs/app.log 的 INFO/WARN/WARNING/ERROR/FATAL。
+
+Q28. Kubelet 日志级别统计
+题目：读取 logs/kubelet.log，按 I/W/E 统计数量。
+
+Q29. find + awk 配置安全审计
+题目：在 conf/ 中找未注释的 PermitRootLogin yes、PasswordAuthentication yes、server_tokens on;，输出 文件:行号:原始行。
+
+Q30. find + awk 敏感信息初筛
+题目：在 conf/ 和 src/ 中找 API key、token、默认密码、JWT secret、数据库凭据等敏感线索。
+
+Q31. 多文件关联：用主机清单补全事件
+题目：用 data/inventory.tsv 补全 data/incidents.tsv，输出 时间 主机 IP 角色 环境 级别 消息；未知主机输出 UNKNOWN。
+
+Q32. 按负责人统计故障事件
+题目：结合 inventory.tsv 和 incidents.tsv，只统计 ERROR/FATAL，按 owner 输出事件数。
+
+Q33. 多文件差集：检查必装包缺失
+题目：用 data/required_packages.txt 对比 data/packages.txt，输出缺失或未 installed 的包。
+
+Q34. 目录级审计：FILENAME/FNR 定位证据
+题目：在 logs、conf、src 中搜索 ERROR/FATAL/TODO/FIXME，输出 文件:行号:内容。
+
+Q35. 多文件状态重置：按文件统计 5xx
+题目：同时读取 logs/access_yesterday.log 和 logs/access.log，分别输出每个文件的 5xx 数量。
+
+Q36. RS 记录分隔符：解析空行分隔的工单块
+题目：读取 data/tickets.txt，把空行分隔的每个工单块解析为 Ticket、Host、Severity。
+
+Q37. ORS/printf：生成逗号分隔列表
+题目：读取 data/packages.txt，把 installed 包名输出成一行逗号分隔列表，末尾不要多余逗号。
+
+Q38. 自定义函数：RSS KB 转 MB
+题目：读取 data/ps_snapshot.txt，把 RSS 从 KB 转成 MB 输出。
+
+Q39. 三元表达式：OK/WARNING/CRITICAL 分类
+题目：读取 data/metrics.csv，用 warn=85、crit=90 判断cpu和mem，把每条记录分类为 OK、WARNING、CRITICAL。
+
+Q40. awk -f 脚本化巡检报告
+题目：创建 tmp/ops_report.awk，使用 -f 和 -v cpu_warn/mem_warn 生成指标巡检报告。
+
+Q41. GNU awk：FPAT 按“字段内容”而不是分隔符切分
+题目：读取 data/quoted_users.csv，用 FPAT 粗略处理“普通字段或双引号字段”，输出 name 和 role。
+
+Q42. GNU awk：asorti 按键排序输出数组
+题目：按 service 统计 logs/app.log 里 ERROR/FATAL 次数，并按服务名排序输出。
+

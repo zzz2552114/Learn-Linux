@@ -1,0 +1,5 @@
+Jul 03 08:00:01 node01 kubelet[778]: I0703 Started container api-7f9d
+Jul 03 08:00:05 node01 kubelet[778]: W0703 Back-off restarting failed container payment
+Jul 03 08:00:08 node01 kubelet[778]: E0703 Error syncing pod, skipping: failed to StartContainer
+Jul 03 08:01:09 node01 kubelet[778]: I0703 Readiness probe succeeded for pod api
+Jul 03 08:02:10 node01 kubelet[778]: E0703 ImagePullBackOff for image registry.example.com/private/payment:2.1.0

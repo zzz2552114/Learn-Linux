@@ -1,0 +1,5 @@
+HOST      CPU  MEM  STATUS
+web01     032  061  OK
+api01     087  072  ALERT
+api02     091  080  ALERT
+db01      084  092  ALERT

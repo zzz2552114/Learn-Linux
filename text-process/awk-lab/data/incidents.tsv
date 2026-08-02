@@ -1,0 +1,7 @@
+time	host	level	message
+08:00	api01	WARN	cpu high
+08:01	api02	ERROR	latency spike
+08:02	db01	ERROR	connections saturated
+08:03	web01	INFO	manual reload
+08:04	unknown01	ERROR	missing from inventory
+08:05	db01	FATAL	disk full

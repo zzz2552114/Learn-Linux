@@ -1,0 +1,8 @@
+USER PID %CPU %MEM RSS COMMAND
+root 1 0.0 0.4 1200 systemd
+www-data 2101 5.5 2.1 84500 nginx
+www-data 2102 4.9 2.0 80000 nginx
+app 3101 75.3 18.5 740000 python
+app 3102 65.8 17.1 684000 python
+postgres 4101 22.4 30.2 1200000 postgres
+redis 5101 8.0 5.4 216000 redis-server
